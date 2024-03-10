@@ -79,11 +79,5 @@ class Dow:
                 f"century = {self.centuryCode}, leap = {self.leapCode}")
 
 
-a = Dow("1410-07-15")
-print(a.dateLong, "the Battle of Grunwald")
-b = Dow('1582-10-04')
-print(b.dateLong, "the last day of Julian calendar")
-c = Dow('1582-10-15')
-print(c.dateLong, "the first day of Gregorian calendar")
-d = Dow('2023-05-05')
-print(d.dateLong, "the end of the COVID-19 pandemic")
+a = Dow("1216-03-07")
+print(a.dateLong)
