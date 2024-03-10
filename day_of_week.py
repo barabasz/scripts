@@ -7,7 +7,7 @@ class Dow:
     The date must be in YYYY-MM-DD format.
     
     The main formula is as follows:
-    (Year Code + Month Code + Century Code + Date Number - Leap Year Code) mod 7
+    (Year Code + Month Code + Century Code + Day - Leap Year Code) mod 7
     """
     def __init__(self, date: str):
         self.date: str = date
@@ -79,5 +79,5 @@ class Dow:
                 f"century = {self.centuryCode}, leap = {self.leapCode}")
 
 
-a = Dow("1216-03-07")
+a = Dow("1410-07-15")
 print(a.dateLong)
