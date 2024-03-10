@@ -75,9 +75,11 @@ class Dow:
                 f"century = {self.centuryCode}, leap = {self.leapCode}")
 
 
-x = Dow('1582-10-04')
-y = Dow('1582-10-15')
-z = Dow('2024-02-10')
+x = Dow("1410-07-15")
 print(x.dateLong)
-print(y.dateLong)
-print(z.dateLong)
+x = Dow('1582-10-04')
+print(x.dateLong)
+x = Dow('1582-10-15')
+print(x.dateLong)
+x = Dow('2024-02-10')
+print(x.dateLong)
