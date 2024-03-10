@@ -3,7 +3,11 @@ class Dow:
     Calculation of the day of the week (DOW) for a given date
     taking into account the change of the Julian calendar
     to the Gregorian calendar introduced on October 15, 1582.
+    
     The date must be in YYYY-MM-DD format.
+    
+    The main formula is as follows:
+    (Year Code + Month Code + Century Code + Date Number - Leap Year Code) mod 7
     """
     def __init__(self, date: str):
         self.date: str = date
