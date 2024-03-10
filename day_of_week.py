@@ -1,30 +1,29 @@
 class Dow:
     """
-    Calculation of the day of the week for a given date
+    Calculation of the day of the week (DOW) for a given date
     taking into account the change of the Julian calendar
     to the Gregorian calendar introduced on October 15, 1582.
     The date must be in YYYY-MM-DD format.
     """
     def __init__(self, date: str):
-        self.date = date
-        self.dateList = date.split('-')
-        self.year = int(self.dateList[0])
-        self.month = int(self.dateList[1])
-        self.day = int(self.dateList[2])
-        self.isGregorian = self.is_gregorian()
-        self.calendar = "Gregorian" if self.isGregorian else "Julian"
-        self.yearNum = self.year % 100
-        self.yearCode = self.get_year_code()
-        self.century = self.year // 100
-        self.centuryCode = self.get_century_code()
-        self.isLeap = self.is_leap_year()
-        self.leapCode = 1 if self.isLeap else 0
-        self.monthName = self.get_month_name()
-        self.monthCode = self.get_month_code()
-        self.dowCode = self.get_dow_code()
-        self.dow = self.get_dow()
-        self.dateLong = self.get_date_long()
-        self.info = self.get_info()
+        self.date: str = date
+        self.dateList: list = date.split('-')
+        self.year: int = int(self.dateList[0])
+        self.month: int = int(self.dateList[1])
+        self.day: int = int(self.dateList[2])
+        self.isGregorian: bool = self.is_gregorian()
+        self.yearNum: int = self.year % 100
+        self.yearCode: int = self.get_year_code()
+        self.century: int = self.year // 100
+        self.centuryCode: int = self.get_century_code()
+        self.isLeap: bool = self.is_leap_year()
+        self.leapCode: int = 1 if self.isLeap else 0
+        self.monthName: str = self.get_month_name()
+        self.monthCode: int = self.get_month_code()
+        self.dowCode: int = self.get_dow_code()
+        self.dow: str = self.get_dow()
+        self.dateLong: str = self.get_date_long()
+        self.info: str = self.get_info()
 
     def is_gregorian(self) -> bool:
         if (self.year > 1582) \
@@ -68,7 +67,8 @@ class Dow:
         return days[self.dowCode]
 
     def get_date_long(self) -> str:
-        return f"{self.day} of {self.monthName} {self.year} is {self.dow} ({self.calendar})"
+        return (f"{self.day} of {self.monthName} {self.year} is {self.dow} "
+                f"({'Gregorian' if self.isGregorian else 'Julian'})")
 
     def get_info(self) -> str:
         return (f"codes: year = {self.yearCode}, month = {self.monthCode}, "
@@ -76,10 +76,10 @@ class Dow:
 
 
 a = Dow("1410-07-15")
-print(a.dateLong, "The Battle of Grunwald")
+print(a.dateLong, "the Battle of Grunwald")
 b = Dow('1582-10-04')
-print(b.dateLong, "Last day of Julian calendar")
+print(b.dateLong, "the last day of Julian calendar")
 c = Dow('1582-10-15')
-print(c.dateLong, "First day of Gregorian calendar")
+print(c.dateLong, "the first day of Gregorian calendar")
 d = Dow('2023-05-05')
 print(d.dateLong, "the end of the COVID-19 pandemic")
