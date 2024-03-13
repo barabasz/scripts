@@ -8,7 +8,8 @@ print(type(names), names)
 
 filename = "test.xlsx"
 book = load_workbook(filename=filename)
-sheet = book['Sheet1']
-column = sheet['B2:B4']
-names = [cell[0].value for cell in column]
+first_sheet = book.sheetnames[0]
+sheet = book[first_sheet]
+column = sheet['B']
+names = [cell.value for cell in column if cell.row != 1]
 print(type(names), names)
