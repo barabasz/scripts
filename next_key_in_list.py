@@ -3,7 +3,7 @@ from typing import Any
 
 def next_key(lst: list, key: Any) -> Any:
     try:
-        res = lst[lst.index(key) + 1]
+        res: Any = lst[lst.index(key) + 1]
     except (ValueError, IndexError):
         res = None
     return res
