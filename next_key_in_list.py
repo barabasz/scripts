@@ -1,4 +1,7 @@
-def next_key(lst: list, key: str or int) -> str or int:
+from typing import Any
+
+
+def next_key(lst: list, key: Any) -> Any:
     try:
         res = lst[lst.index(key) + 1]
     except (ValueError, IndexError):
