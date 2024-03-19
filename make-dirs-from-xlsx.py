@@ -16,6 +16,10 @@ column_letter = get_column_letter(colum_number)
 column = sheet[column_letter]
 folders = [cell.value for cell in column if cell.row != 1]
 
+counter = 0
+
 for folder in folders:
     os.mkdir(os.path.join(root_path, folder))
-    print(folder)
+    counter += 1
+
+print(f"{counter} folder(s) created")
