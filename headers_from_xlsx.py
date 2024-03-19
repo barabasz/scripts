@@ -1,5 +1,7 @@
 from openpyxl import load_workbook
 
+"""Get headers from Excel's table"""
+
 headers_row = 1 # row number with headers
 sheet_num = 0 # sheet index
 file_name = 'filename.xlsx'
