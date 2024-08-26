@@ -1,5 +1,6 @@
 from datetime import date
 
+
 date_1 = date.fromisoformat("2024-01-01")
 date_2 = date.fromisoformat("2024-09-03")
 
