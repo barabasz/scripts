@@ -1,12 +1,12 @@
 import pyexcel
 from openpyxl import load_workbook
 
-filename = "test.xls"
+filename = "_assets/load_workbook_test.xls"
 records = pyexcel.iget_records(file_name=filename)
 names = [record['name'] for record in records]
 print(type(names), names)
 
-filename = "test.xlsx"
+filename = "_assets/load_workbook_test.xlsx"
 book = load_workbook(filename=filename)
 first_sheet = book.sheetnames[0]
 sheet = book[first_sheet]
