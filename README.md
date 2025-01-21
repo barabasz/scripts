@@ -44,3 +44,8 @@ Options:
     -t      show script execution time
     -v      print version and exit
 
+#### Remarks
+
+- TTFB (Time to First Byte)  is calculated as a time between final request (GET send by the client after TCP handshake and SSL handshake) and first byte recieved (difference between `time_pretransfer` and `time_starttransfer`). 
+- Time of transfer is calculated as a time betwenen total time (`time_total`) and a time the first byte was just about to be transferred (`time_starttransfer`).
+- Total time is calculated as a total time for this request, including name resolving, handshaking and transfer.
