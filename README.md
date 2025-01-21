@@ -2,6 +2,8 @@
 
 More or less useful code snippets and little scripts in various languages (TS, JS, Python, VBA, C, DAX, SQL).
 
+- [HP PPL](hp-ppl) - HP Prime Programming Language
+
 ## VBA
 
 - [Bookmarks](vba/Bookmarks.vba) bunch of functions to handle bookmarks in Word
