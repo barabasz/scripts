@@ -16,3 +16,9 @@ More or less useful code snippets and little scripts in various languages (TS, J
   - `RemoveAllBookmarkWithContent`
 - [HexToVBAColor](vba/HexToVBAColor.vba) converts normal hex color values to VBA type, `hexColor` parameter can be a string in any of following formats: `#ff0000`, `ff0000`, `#f00`, `f00`. (VBA constructs color codes in very odd way by joining the BGR codes, so `#aabbcc` becomes `&Hccbbaa`)
 - [CorrectDateFormat](vba/CorrectDateFormat.vba) normalize the date format to the ISO 8601:2004 standard
+
+## PHP
+
+### [[php/urlinfo.php]]
+
+`urlinfo` is a simple PHP CLI wrapper around [cURL](https://www.php.net/manual/en/book.curl.php) that allows to display the most important information about the requested url in easy-to-read form.
