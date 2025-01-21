@@ -1,6 +1,6 @@
 # barabasz/scripts
 
-More or less useful scripts in various languages (TS, JS, Python, VBA, C, DAX, SQL).
+More or less useful code snippets and little scripts in various languages (TS, JS, Python, VBA, C, DAX, SQL).
 
 ## VBA
 
