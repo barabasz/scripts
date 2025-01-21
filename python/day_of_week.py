@@ -4,7 +4,7 @@ class Dow:
     taking into account the change of the Julian calendar
     to the Gregorian calendar introduced on October 15, 1582.
     
-    The date must be in YYYY-MM-DD format.
+    The date must be in YYYY-MM-DD format (ISO 8601).
     
     The main formula is as follows:
     (Year Code + Month Code + Century Code + Day - Leap Year Code) mod 7
