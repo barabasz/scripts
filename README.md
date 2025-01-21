@@ -19,6 +19,6 @@ More or less useful code snippets and little scripts in various languages (TS, J
 
 ## PHP
 
-### [[php/urlinfo.php]]
+### urlinfo
 
-`urlinfo` is a simple PHP CLI wrapper around [cURL](https://www.php.net/manual/en/book.curl.php) that allows to display the most important information about the requested url in easy-to-read form.
+[[php/urlinfo.php|urlinfo]] is a simple PHP CLI wrapper around [cURL](https://www.php.net/manual/en/book.curl.php) that allows to display the most important information about the requested url in easy-to-read form.
