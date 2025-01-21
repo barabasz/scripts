@@ -22,3 +22,25 @@ More or less useful code snippets and little scripts in various languages (TS, J
 ### urlinfo
 
 [[php/urlinfo.php|urlinfo]] is a simple PHP CLI wrapper around [cURL](https://www.php.net/manual/en/book.curl.php) that allows to display the most important information about the requested url in easy-to-read form.
+
+#### Usage
+
+`urlinfo [options] URL`
+
+Arguments:
+
+`URL` - url to request
+
+Options:
+
+    -b      show body (only for unencoded text/plain content) 
+    -c      print verbose cURL info (without SSL info)
+    -f      ignore SSL errors
+    -H      print this info and exit
+    -h      print verbose response headers (without cookies and CSP)
+    -i      print verbose ipinfo
+    -m      mute standard output
+    -p      force plain text content response
+    -t      show script execution time
+    -v      print version and exit
+
