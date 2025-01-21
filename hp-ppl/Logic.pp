@@ -1,0 +1,19 @@
+EXPORT NAND(a,b)
+BEGIN
+  RETURN NOT (a AND b);
+END;
+
+EXPORT NOR(a,b)
+BEGIN
+  RETURN NOT (a OR b);
+END;
+
+EXPORT XNOR(a,b)
+BEGIN
+  RETURN (NOT a AND NOT b) OR (a AND b);
+END;
+
+EXPORT IMPL(a,b)
+BEGIN
+  RETURN (NOT a) OR b;
+END;
