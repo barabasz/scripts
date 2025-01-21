@@ -1,8 +1,8 @@
-### urlinfo
+# urlinfo
 
 [[php/urlinfo.php|urlinfo]] is a simple PHP CLI wrapper around [cURL](https://www.php.net/manual/en/book.curl.php) that allows to display the most important information about the requested url in easy-to-read form.
 
-#### Usage
+## Usage
 
 `urlinfo [options] URL`
 
@@ -23,7 +23,7 @@ Options:
     -t      show script execution time
     -v      print version and exit
 
-#### Remarks
+## Remarks
 
 - TTFB (Time to First Byte)  is calculated as a time between final request (GET send by the client after TCP handshake and SSL handshake) and first byte recieved (difference between `time_pretransfer` and `time_starttransfer`). 
 - Time of transfer is calculated as a time betwenen total time (`time_total`) and a time the first byte was just about to be transferred (`time_starttransfer`).
