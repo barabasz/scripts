@@ -2,6 +2,8 @@
 
 More or less useful code snippets and little scripts in various languages (TS, JS, Python, VBA, C, DAX, SQL).
 
+- [C](c) - C++
+  - [fibonacci.c](scripts/c/fibonacci.c) - Fibonacci sequence generator
 - [HP PPL](hp-ppl) - HP Prime Programming Language
 - [VBA](vba) - Visual Basic for Applications
   - [Bookmarks](vba/Bookmarks.md) bunch of functions to handle bookmarks in Word
