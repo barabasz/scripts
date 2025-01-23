@@ -11,7 +11,7 @@ More or less useful code snippets and little scripts in various languages (TS, J
 - [javascript](javascript) – JavaScript
   - [madhava–leibniz-pi.js](javascript/madhava–leibniz-pi.js) – Leibniz formula for π
 - [PHP](php) – PHP: Hypertext Preprocessor
-  - [urlinfo](php/urlinfo) is a simple PHP CLI wrapper around [cURL](https://www.php.net/manual/en/book.curl.php) showing info about the requested url
+  - [urlinfo](php/urlinfo) – simple PHP CLI wrapper around [cURL](https://www.php.net/manual/en/book.curl.php) showing info about the requested url
 - [Python](python) – Python programming language
   - [uuid_v4.py](python/uuid_v4.py) – UUID ver 4 generator
 - [VBA](vba) – Visual Basic for Applications
