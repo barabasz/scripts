@@ -5,6 +5,7 @@ More or less useful code snippets and little scripts in various languages (TS, J
 - [C](c) – C++
   - [fibonacci.c](c/fibonacci.c) – Fibonacci sequence generator
 - [HP PPL](hp-ppl) – HP Prime Programming Language
+  - [JulianCalendar.pp](hp-ppl/JulianCalendar.pp) – Julian calendar converter
 - [HTML](html) – Hypertext Markup Language 5
   - [empty.html](html/empty.html) – empty HTML5 template
 - [javascript](javascript) – JavaScript
