@@ -85,7 +85,7 @@ readonly class Card
             13      => $card * 16 + 0xE,
             default => $card * 16 + $rank
         };
-        
+
         return mb_chr($card, 'UTF-8');
     }
 
@@ -118,9 +118,9 @@ class Hand
 
     /**
      * Create new hand from the deck
-     * @param Deck $deck 
-     * @param int $cards 
-     * @return void 
+     * @param Deck $deck
+     * @param int $cards
+     * @return void
      */
     public function __construct(Deck $deck, int $cards)
     {
@@ -129,9 +129,9 @@ class Hand
 
     /**
      * Show a specific card from the hand or whole hand if $card = 0
-     * @param int $card 
+     * @param int $card
      * @param string $type
-     * @return string 
+     * @return string
      */
     public function show(int $card = 0, string $type = 'symbol'): string
     {
@@ -151,9 +151,9 @@ class Hand
     }
 
     /**
-     * Choose a specific card from the hand 
-     * @param int $card 
-     * @return Card|bool 
+     * Choose a specific card from the hand
+     * @param int $card
+     * @return Card|bool
      */
     public function pick(int $card = 1): Card|bool
     {
@@ -166,43 +166,42 @@ class Hand
         }
     }
 
-    /** 
+    /**
      * Count cards in the hand
-     * @return int  
+     * @return int
      */
     public function count(): int
     {
         return count($this->hand);
     }
 
-    /** 
-     * Choose a random card from the hand 
-     * @return Card 
+    /**
+     * Choose a random card from the hand
+     * @return Card
      */
     public function rand(): Card
     {
         return $this->pick(1, count($this->hand));
     }
 
-    
     /**
      * Callback comparison function for suits
-     * @param Card $card1 
-     * @param Card $card2 
-     * @param array $suitorder 
-     * @return int 
+     * @param Card $card1
+     * @param Card $card2
+     * @param array $suitorder
+     * @return int
      */
     public function compare_suite(Card $card1, Card $card2, array $suitorder = DEFAULT_SUIT_ORDER):int
-    {        
+    {
         return array_search($card1->suite, $suitorder) <=> array_search($card2->suite, $suitorder);
     }
 
     /**
      * Callback comparison function for ranks
-     * @param Card $card1 
-     * @param Card $card2 
-     * @param array $cardsorder 
-     * @return int 
+     * @param Card $card1
+     * @param Card $card2
+     * @param array $cardsorder
+     * @return int
      */
     public function compare_rank(Card $card1, Card $card2, array $cardsorder = DEFAULT_RANK_ORDER): int
     {
@@ -218,9 +217,6 @@ class Hand
         usort($this->hand, 'Barabasz\Cards\Hand::compare_suite');
     }
 
-
-
-
 }
 
 class Deck
@@ -235,8 +231,8 @@ class Deck
     private function make_deck(): array
     {
         $deck = [];
-        for ($s = 1; $s < 5; $s++) { 
-            for ($r = 1; $r < 14; $r++) { 
+        for ($s = 1; $s < 5; $s++) {
+            for ($r = 1; $r < 14; $r++) {
                 $deck[$s][$r] = new Card($s, $r);
             }
         }
@@ -250,12 +246,12 @@ class Deck
             while (($a = $a ?? 1) <= $i) {
                 $s = rand(1, 4);
                 $r = rand(1, 13);
-                
+
                 if ($this->deck[$s][$r] ?? false) {
                     $hand[] = $this->deck[$s][$r];
                     unset($this->deck[$s][$r]);
                     $a++;
-                }             
+                }
             }
             return $hand;
         } else {
