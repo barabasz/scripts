@@ -20,3 +20,4 @@ print(is_palindrome("racecart"))
 print(is_palindrome(23454321))
 print(is_palindrome("Ave Ewa"))
 print(is_palindrome("Νιψο Ανομeματα Μe Μοναν Οψιν"))
+
