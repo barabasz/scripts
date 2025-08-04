@@ -7,12 +7,12 @@ Attribute VB_GlobalNameSpace = False
 Attribute VB_Creatable = False
 Attribute VB_PredeclaredId = False
 Attribute VB_Exposed = False
-' Logger v3.0 - RELEASE
-' Uniwersalna klasa logująca z poprawioną składnią dla ShowCaller=False
+' Logger v3.3 - STABLE
+' Uniwersalna klasa logująca
 ' Autor: barabasz
 ' Data utworzenia: 2025-08-04
-' Data wydania: 2025-08-04 08:34:46 UTC
-' Status: Przetestowana i działająca wersja
+' Data wydania: 2025-08-04 10:22:03 UTC
+' Status: Przetestowana i stabilna wersja
 
 Option Explicit
 
@@ -25,6 +25,8 @@ Private progressStartTime As Date
 Private isProgressStarted As Boolean
 Private currentLogLevel As Integer
 Private currentShowCaller As Boolean
+Private currentShowTime As Boolean
+Private currentShowLine As Boolean
 
 ' Stałe poziomów logowania
 Private Const LOG_LEVEL_DBG As Integer = 0
@@ -33,67 +35,118 @@ Private Const LOG_LEVEL_WARN As Integer = 2
 Private Const LOG_LEVEL_ERROR As Integer = 3
 Private Const LOG_LEVEL_FATAL As Integer = 4
 
-' Konstruktor klasy - ustaw domyślne wartości
+' Konstruktor klasy
 Private Sub Class_Initialize()
-    currentCaller = "unknown"        ' Domyślny caller
-    isProcessStarted = False         ' Flaga czy proces został rozpoczęty
-    progressNameText = ""            ' Nazwa procesu dla Progress
-    progressMaxValue = 0             ' Maksymalna wartość dla Progress
-    isProgressStarted = False        ' Flaga czy progress został rozpoczęty
-    currentLogLevel = LOG_LEVEL_DBG  ' Domyślny poziom: Debug (pokazuj wszystko)
-    currentShowCaller = False        ' Domyślnie ukryj caller dla większości logów
+    currentCaller = "unknown"
+    isProcessStarted = False
+    progressNameText = ""
+    progressMaxValue = 0
+    isProgressStarted = False
+    currentLogLevel = LOG_LEVEL_DBG
+    currentShowCaller = False
+    currentShowTime = True
+    currentShowLine = True
 End Sub
 
-' Metoda do ustawiania aktualnego caller
-Public Sub SetCaller(Caller As String)
-    If Trim(Caller) = "" Then
+' METODY USTAWIANIA
+
+Public Sub SetCaller(name As String)
+    If Trim(name) = "" Then
         currentCaller = "unknown"
     Else
-        currentCaller = Caller
+        currentCaller = name
     End If
 End Sub
 
-' Metoda do ustawiania poziomu logowania
-Public Sub SetLogLevel(level As Integer)
-    If level >= LOG_LEVEL_DBG And level <= LOG_LEVEL_FATAL Then
-        currentLogLevel = level
+Public Sub SetLevel(logLevel As Integer)
+    If logLevel >= LOG_LEVEL_DBG And logLevel <= LOG_LEVEL_FATAL Then
+        currentLogLevel = logLevel
     Else
-        currentLogLevel = LOG_LEVEL_DBG  ' Domyślnie Debug przy błędnej wartości
+        currentLogLevel = LOG_LEVEL_DBG
     End If
 End Sub
 
-' Metoda do ustawiania widoczności caller
-Public Sub SetShowCaller(show As Boolean)
+Public Sub ShowCaller(show As Boolean)
     currentShowCaller = show
 End Sub
 
-' Właściwość tylko do odczytu aktualnego caller
-Public Property Get Caller() As String
-    Caller = currentCaller
+Public Sub ShowTime(show As Boolean)
+    currentShowTime = show
+End Sub
+
+Public Sub ShowLine(show As Boolean)
+    currentShowLine = show
+End Sub
+
+' METODY WYŚWIETLAJĄCE AKTUALNE WARTOŚCI
+
+Public Sub Caller()
+    WriteLog " Current caller: " & currentCaller, "info"
+End Sub
+
+Public Sub Level()
+    Dim levelName As String
+    Select Case currentLogLevel
+        Case LOG_LEVEL_DBG
+            levelName = "Debug (0)"
+        Case LOG_LEVEL_INFO
+            levelName = "Info (1)"
+        Case LOG_LEVEL_WARN
+            levelName = "Warning (2)"
+        Case LOG_LEVEL_ERROR
+            levelName = "Error (3)"
+        Case LOG_LEVEL_FATAL
+            levelName = "Fatal (4)"
+        Case Else
+            levelName = "Unknown (" & currentLogLevel & ")"
+    End Select
+    WriteLog " Current level: " & levelName, "info"
+End Sub
+
+' WŁAŚCIWOŚCI TYLKO DO ODCZYTU
+
+Public Property Get GetCaller() As String
+    GetCaller = currentCaller
 End Property
 
-' Właściwość tylko do odczytu aktualnego poziomu logowania
-Public Property Get LogLevel() As Integer
-    LogLevel = currentLogLevel
+Public Property Get GetLevel() As Integer
+    GetLevel = currentLogLevel
 End Property
 
-' Właściwość tylko do odczytu ustawienia ShowCaller
-Public Property Get ShowCaller() As Boolean
-    ShowCaller = currentShowCaller
+Public Property Get GetShowCaller() As Boolean
+    GetShowCaller = currentShowCaller
 End Property
 
-' Prywatna metoda sprawdzająca czy log ma być wyświetlony
+Public Property Get GetShowTime() As Boolean
+    GetShowTime = currentShowTime
+End Property
+
+Public Property Get GetShowLine() As Boolean
+    GetShowLine = currentShowLine
+End Property
+
+Public Property Get GetLogTime() As Variant
+    If isProcessStarted Then
+        Dim durationTime As Double
+        Dim currentTime As Date
+        currentTime = Now()
+        durationTime = currentTime - startTime
+        GetLogTime = FormatDuration(durationTime)
+    Else
+        GetLogTime = False
+    End If
+End Property
+
+' METODY PRYWATNE
+
 Private Function ShouldLog(messageLogLevel As Integer) As Boolean
     ShouldLog = (messageLogLevel >= currentLogLevel)
 End Function
 
-' Prywatna metoda sprawdzająca czy pokazać caller dla danego typu logu
 Private Function ShouldShowCaller(logType As String) As Boolean
     If currentShowCaller Then
-        ' Jeśli ShowCaller=True, zawsze pokazuj
         ShouldShowCaller = True
     Else
-        ' Jeśli ShowCaller=False, pokazuj tylko dla wybranych typów
         Select Case LCase(logType)
             Case "start", "end", "fatal", "exception"
                 ShouldShowCaller = True
@@ -103,7 +156,6 @@ Private Function ShouldShowCaller(logType As String) As Boolean
     End If
 End Function
 
-' Prywatna metoda konwertująca Variant na String z obsługą różnych typów
 Private Function VariantToString(value As Variant) As String
     On Error GoTo ErrorHandler
     
@@ -123,7 +175,7 @@ Private Function VariantToString(value As Variant) As String
         Case vbDate
             VariantToString = format(value, "yyyy-mm-dd hh:mm:ss")
         Case vbString
-            VariantToString = Chr(34) & value & Chr(34)  ' Dodaj cudzysłowy
+            VariantToString = Chr(34) & value & Chr(34)
         Case vbObject
             If value Is Nothing Then
                 VariantToString = "<Nothing>"
@@ -146,39 +198,37 @@ ErrorHandler:
     VariantToString = "<Error converting value>"
 End Function
 
-' Prywatna metoda wykonująca faktyczne logowanie
 Private Sub WriteLog(message As String, logType As String, Optional forceLog As Boolean = False)
-    Dim timestamp As String
     Dim currentTime As Date
     Dim typeLabel As String
     Dim messageLogLevel As Integer
     Dim callerPart As String
+    Dim timePart As String
     
-    ' Pobierz aktualny czas i formatuj jako HH:MM:SS
     currentTime = Now()
-    timestamp = VBA.format(currentTime, "hh:mm:ss")
+    If currentShowTime Then
+        timePart = VBA.format(currentTime, "hh:mm:ss") & " "
+    Else
+        timePart = ""
+    End If
     
-    ' Określ czy pokazać caller dla tego typu logu
     If ShouldShowCaller(logType) Then
         callerPart = " " & currentCaller & ":"
     Else
         callerPart = ""
     End If
     
-    ' Sprawdź czy to Progress (ma własny gotowy label)
-    If Left(logType, 1) = "[" And Right(logType, 1) = "%" Then
-        ' To jest Progress - użyj gotowego labela
+    If Left(logType, 1) = "%" And Right(logType, 1) = "%" Then
         typeLabel = logType
-        messageLogLevel = LOG_LEVEL_INFO  ' Progress ma poziom Info
+        messageLogLevel = LOG_LEVEL_INFO
     Else
-        ' Standardowe typy logów
         Select Case LCase(logType)
             Case "start"
                 typeLabel = "START"
-                messageLogLevel = -1  ' Start zawsze się wyświetla
+                messageLogLevel = -1
             Case "end"
                 typeLabel = "DONE!"
-                messageLogLevel = -1  ' Done zawsze się wyświetla
+                messageLogLevel = -1
             Case "debug"
                 typeLabel = "[DBG]"
                 messageLogLevel = LOG_LEVEL_DBG
@@ -199,30 +249,31 @@ Private Sub WriteLog(message As String, logType As String, Optional forceLog As 
                 messageLogLevel = LOG_LEVEL_INFO
             Case "variable"
                 typeLabel = "[VAR]"
-                messageLogLevel = LOG_LEVEL_DBG  ' Var ma poziom Debug
+                messageLogLevel = LOG_LEVEL_DBG
             Case "exception"
                 typeLabel = "[EXC]"
-                messageLogLevel = LOG_LEVEL_ERROR  ' Exception ma poziom Error
+                messageLogLevel = LOG_LEVEL_ERROR
+            Case "elapsed"
+                typeLabel = "[DUR]"
+                messageLogLevel = LOG_LEVEL_INFO
             Case Else
                 typeLabel = "[INF]"
                 messageLogLevel = LOG_LEVEL_INFO
         End Select
     End If
     
-    ' Wyloguj tylko jeśli poziom jest odpowiedni lub forceLog=True
     If forceLog Or messageLogLevel = -1 Or ShouldLog(messageLogLevel) Then
-        Debug.Print timestamp & " " & typeLabel & callerPart & message
+        Debug.Print timePart & typeLabel & callerPart & message
     End If
 End Sub
 
-' Funkcja formatująca czas wykonania
-Private Function FormatDuration(duration As Double) As String
+Private Function FormatDuration(elapsedTime As Double) As String
     Dim totalSeconds As Long
     Dim hours As Long
     Dim minutes As Long
     Dim seconds As Long
     
-    totalSeconds = CLng(duration * 24 * 60 * 60) ' Konwersja z dni na sekundy
+    totalSeconds = CLng(elapsedTime * 24 * 60 * 60)
     
     hours = totalSeconds \ 3600
     minutes = (totalSeconds Mod 3600) \ 60
@@ -231,37 +282,65 @@ Private Function FormatDuration(duration As Double) As String
     FormatDuration = format(hours, "00") & ":" & format(minutes, "00") & ":" & format(seconds, "00")
 End Function
 
-' Publiczne metody logowania
+' METODY LOGOWANIA
+
 Public Sub Start()
     Dim currentTime As Date
     Dim dateStr As String
+    Dim timeStr As String
+    Dim message As String
     
     currentTime = Now()
     dateStr = VBA.format(currentTime, "yyyy-mm-dd")
     
-    ' Wyświetl separator ASCII (60 znaków) - zawsze
-    Debug.Print "******** --------------------------------------------------"
+    If currentShowLine Then
+        Debug.Print "******** --------------------------------------------------"
+    End If
     
     startTime = currentTime
     isProcessStarted = True
-    WriteLog " (" & dateStr & ")", "start", True  ' forceLog=True
+    
+    If Not currentShowTime Then
+        timeStr = VBA.format(currentTime, "hh:mm:ss")
+        message = " (" & dateStr & " " & timeStr & ")"
+    Else
+        message = " (" & dateStr & ")"
+    End If
+    
+    WriteLog message, "start", True
 End Sub
 
 Public Sub Done()
-    Dim duration As Double
+    Dim elapsedTime As Double
     Dim durationStr As String
     Dim message As String
+    Dim currentTime As Date
+    Dim timeStr As String
+    
+    currentTime = Now()
     
     If isProcessStarted Then
-        duration = Now() - startTime
-        durationStr = FormatDuration(duration)
-        message = " (took " & durationStr & ")"
+        elapsedTime = currentTime - startTime
+        durationStr = FormatDuration(elapsedTime)
+        
+        If Not currentShowTime Then
+            timeStr = VBA.format(currentTime, "hh:mm:ss")
+            message = " (" & timeStr & ", took " & durationStr & ")"
+        Else
+            message = " (took " & durationStr & ")"
+        End If
+        
         isProcessStarted = False
     Else
-        message = " (no Start called)"
+        If Not currentShowTime Then
+            timeStr = VBA.format(currentTime, "hh:mm:ss")
+            message = " (" & timeStr & ", no Start called)"
+        Else
+            message = " (no Start called)"
+        End If
     End If
     
-    WriteLog message, "end", True  ' forceLog=True
+    WriteLog message, "end", True
 End Sub
 
 Public Sub Dbg(message As String)
@@ -288,6 +367,21 @@ Public Sub Ok(message As String)
     WriteLog " " & message, "success"
 End Sub
 
+Public Sub Duration()
+    Dim timeStr As Variant
+    Dim message As String
+    
+    timeStr = GetLogTime
+    
+    If timeStr = False Then
+        message = " No Start called - cannot measure duration"
+    Else
+        message = " " & CStr(timeStr)
+    End If
+    
+    WriteLog message, "elapsed"
+End Sub
+
 Public Sub Var(variableName As String, value As Variant)
     Dim valueStr As String
     valueStr = VariantToString(value)
@@ -298,7 +392,6 @@ Public Sub Exception(Optional customMessage As String = "")
     Dim message As String
     Dim errorInfo As String
     
-    ' Sprawdź czy jest aktywny błąd VBA
     If Err.Number <> 0 Then
         errorInfo = "Error " & Err.Number & ": " & Err.Description
         If Err.Source <> "" Then
@@ -308,7 +401,6 @@ Public Sub Exception(Optional customMessage As String = "")
         errorInfo = "No active VBA error"
     End If
     
-    ' Sformatuj wiadomość
     If customMessage <> "" Then
         message = " " & customMessage & " | " & errorInfo
     Else
@@ -319,16 +411,15 @@ Public Sub Exception(Optional customMessage As String = "")
 End Sub
 
 Public Sub CatchException(customMessage As String)
-    ' Alternatywna nazwa dla Exception z wymaganą wiadomością
     Exception customMessage
 End Sub
 
 Public Sub TryLog(operation As String)
-    ' Pomocnicza metoda do oznaczania początku operacji która może się nie powieść
     Dbg "Trying: " & operation
 End Sub
 
-' Metody Progress
+' METODY PROGRESS
+
 Public Sub ProgressName(name As String)
     progressNameText = name
 End Sub
@@ -345,18 +436,17 @@ End Sub
 
 Public Sub ProgressEnd()
     If isProgressStarted Then
-        Dim duration As Double
+        Dim elapsedTime As Double
         Dim durationStr As String
         Dim percent As Integer
         Dim percentLabel As String
         Dim message As String
         
-        duration = Now() - progressStartTime
-        durationStr = FormatDuration(duration)
+        elapsedTime = Now() - progressStartTime
+        durationStr = FormatDuration(elapsedTime)
         
-        ' Wyświetl końcowy progress z czasem wykonania
         percent = 100
-        percentLabel = "[" & format(percent, "000") & "%"
+        percentLabel = "%" & format(percent, "000") & "%"
         
         If progressNameText <> "" Then
             message = " " & progressNameText & " (" & progressMaxValue & "/" & progressMaxValue & ", took " & durationStr & ")"
@@ -367,7 +457,6 @@ Public Sub ProgressEnd()
         WriteLog message, percentLabel
         isProgressStarted = False
     Else
-        ' Jeśli nie było ProgressStart, wyświetl zwykły 100%
         Progress progressMaxValue
     End If
 End Sub
@@ -378,35 +467,144 @@ Public Sub Progress(current As Long)
     Dim message As String
     Dim timeInfo As String
     
-    ' Oblicz procent
     If progressMaxValue > 0 Then
         percent = CInt((current / progressMaxValue) * 100)
     Else
         percent = 0
     End If
     
-    ' Sformatuj label procentowy (zawsze 3 znaki + %)
-    percentLabel = "[" & format(percent, "000") & "%"
+    percentLabel = "%" & format(percent, "000") & "%"
     
-    ' Sprawdź czy to końcowy progress (100%) i czy mamy czas rozpoczęcia
     If current = progressMaxValue And isProgressStarted Then
-        Dim duration As Double
+        Dim elapsedTime As Double
         Dim durationStr As String
-        duration = Now() - progressStartTime
-        durationStr = FormatDuration(duration)
+        elapsedTime = Now() - progressStartTime
+        durationStr = FormatDuration(elapsedTime)
         timeInfo = ", took " & durationStr
         isProgressStarted = False
     Else
         timeInfo = ""
     End If
     
-    ' Sformatuj komunikat
     If progressNameText <> "" Then
         message = " " & progressNameText & " (" & current & "/" & progressMaxValue & timeInfo & ")"
     Else
         message = " Progress (" & current & "/" & progressMaxValue & timeInfo & ")"
     End If
     
-    ' Przekaż gotowy label jako logType
     WriteLog message, percentLabel
 End Sub
+
+' ===============================================
+' DOKUMENTACJA LOGGER v3.3 - STABLE
+' ===============================================
+'
+' STATUS: PRZETESTOWANA I STABILNA WERSJA
+' Autor: barabasz
+' Data wydania: 2025-08-04 10:22:03 UTC
+'
+' PODSTAWOWE UŻYCIE:
+' -----------------
+' Dim log As New Logger
+' log.SetCaller "MojeMakro"
+' log.SetLevel 1
+' log.ShowTime False
+' log.Start
+' log.Info "Wiadomość"
+' log.Duration
+' log.Done
+'
+' METODY USTAWIANIA:
+' -----------------
+' SetCaller(name)           - Ustawia nazwę wywołującej funkcji
+' SetLevel(level)           - Poziom logowania (0-4)
+' ShowTime(show)            - Kontrola czasu (domyślnie True)
+' ShowCaller(show)          - Kontrola caller (domyślnie False)
+' ShowLine(show)            - Kontrola linii separatora (domyślnie True)
+'
+' METODY WYŚWIETLAJĄCE:
+' --------------------
+' Caller()                  - [INF] Wyświetla aktualny caller
+' Level()                   - [INF] Wyświetla aktualny poziom
+'
+' METODY LOGOWANIA:
+' ----------------
+' Start()                   - START Rozpoczęcie z datą (+ CALLER)
+' Done()                    - DONE! Zakończenie z czasem (+ CALLER)
+' Duration()                - [DUR] Aktualny czas trwania
+' Dbg(message)              - [DBG] Debug (poziom 0)
+' Info(message)             - [INF] Informacje (poziom 1)
+' Warn(message)             - [WRN] Ostrzeżenia (poziom 2)
+' Error(message)            - [ERR] Błędy (poziom 3)
+' Fatal(message)            - [!!!] Krytyczne (poziom 4, + CALLER)
+' Ok(message)               - [OK!] Sukces (poziom 1)
+' Var(name, value)          - [VAR] Zmienne (poziom 0)
+' Exception(msg)            - [EXC] Wyjątki VBA (poziom 3, + CALLER)
+' CatchException(msg)       - [EXC] Alias Exception
+' TryLog(operation)         - [DBG] Ryzykowne operacje
+'
+' METODY PROGRESS:
+' ---------------
+' ProgressName(name)        - Nazwa procesu
+' ProgressMax(value)        - Maksymalna wartość
+' ProgressStart()           - %000% Rozpoczęcie z pomiarem
+' Progress(current)         - %XXX% Aktualny postęp
+' ProgressEnd()             - %100% Zakończenie z czasem
+'
+' WŁAŚCIWOŚCI (TYLKO ODCZYT):
+' --------------------------
+' GetCaller                 - Aktualny caller
+' GetLevel                  - Aktualny poziom
+' GetShowCaller             - Ustawienie caller
+' GetShowTime               - Ustawienie czasu
+' GetShowLine               - Ustawienie linii
+' GetLogTime                - Czas trwania (hh:mm:ss) lub False
+'
+' POZIOMY LOGOWANIA:
+' -----------------
+' 0 = Debug   - [DBG], [VAR], TryLog (wszystkie)
+' 1 = Info    - [INF], [OK!], [DUR], Progress, Caller(), Level()
+' 2 = Warning - [WRN] i wyżej
+' 3 = Error   - [ERR], [EXC] i wyżej
+' 4 = Fatal   - [!!!] tylko krytyczne
+'
+' Start() i Done() ZAWSZE widoczne!
+'
+' PRZYKŁADY:
+' ---------
+' ShowTime=True, ShowCaller=False:
+' ******** --------------------------------------------------
+' 10:22:03 START caller: (2025-08-04)
+' 10:22:03 [INF] message
+' 10:22:05 [DUR] 00:00:02
+' 10:22:05 DONE! caller: (took 00:00:02)
+'
+' ShowTime=False, ShowCaller=False:
+' START caller: (2025-08-04 10:22:03)
+' [INF] message
+' [DUR] 00:00:02
+' DONE! caller: (10:22:05, took 00:00:02)
+'
+' KLUCZOWE FUNKCJONALNOŚCI:
+' ------------------------
+' ? Automatyczny pomiar czasu Start/Done i Progress
+' ? Bieżący pomiar czasu GetLogTime/Duration
+' ? Hierarchiczne poziomy logowania z filtrowaniem
+' ? Kontrola widoczności caller, czasu i linii separatora
+' ? Automatyczne logowanie wyjątków VBA
+' ? Inteligentne formatowanie różnych typów danych
+' ? Konsystentna konwencja nazw Set*/Get*
+' ? Metody wyświetlające aktualne wartości
+' ? Thread-safe w kontekście VBA
+' ? Brak zewnętrznych zależności
+'
+' HISTORIA WERSJI:
+' ---------------
+' v1.x: Podstawowa funkcjonalność
+' v2.x: Refinement i poziomy logowania
+' v3.0-3.2: Rozszerzone kontrole i pomiar czasu
+' v3.3: Stabilna wersja - przetestowana i zoptymalizowana
+'
+' ===============================================
+' KONIEC DOKUMENTACJI LOGGER v3.3 - STABLE
+' ===============================================
