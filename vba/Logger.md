@@ -1,25 +1,48 @@
-# DOKUMENTACJA LOGGER v3.4
+# DOKUMENTACJA LOGGER v3.5 - STABLE
 
 ## STATUS: WERSJA PRODUKCYJNA
 **Autor**: barabasz  
-**Data wydania**: 2025-08-07 12:22:41 UTC
+**Data wydania**: 2025-08-07 13:57:54 UTC
 
-## NOWOŚCI W v3.4:
-- Dodano możliwość logowania do pliku (LogToFile)
-- Dodano metody konfiguracji pliku logów (SetLogFolder, SetLogFilename)
-- Dodano właściwości GetLogFilePath i IsLoggingToFile
-- Zachowana pełna kompatybilność z wcześniejszymi wersjami
+## ZMIANY W v3.5:
+- Rozszerzona obsługa tablic z możliwością wyświetlania ich zawartości
+- Dodane metody informacyjne: PrintDate(), PrintTime(), Workbook(), Sheet()
 
 ## PODSTAWOWE UŻYCIE:
 ```vba
+' Tradycyjne użycie:
 Dim log As New Logger
 log.SetCaller "MojeMakro"
 log.SetLevel 1
-log.LogToFile True  ' Włącza logowanie do pliku z ustawieniami domyślnymi
 log.Start
 log.Info "Wiadomość"
-log.Duration
 log.Done
+
+' Fluent API:
+Dim log As New Logger
+log.SetCaller("MojeMakro").SetLevel(1) _
+   .Start _
+   .Info("Wiadomość") _
+   .Done
+```
+
+## FLUENT API:
+Fluent API pozwala łączyć wywołania metod w jeden łańcuch, co daje bardziej zwięzły i czytelny kod. Wszystkie metody klasy Logger mogą być łańcuchowane.
+
+```vba
+log.SetCaller("MojaMakro").ShowTime(True).Start.Info("Komunikat").Done
+```
+
+Można też używać bloku WITH:
+
+```vba
+With log
+    .SetCaller "MojeMakro"
+    .SetLevel 1
+    .Start
+    .Info "Komunikat"
+    .Done
+End With
 ```
 
 ## LOGOWANIE DO PLIKU:
@@ -27,20 +50,21 @@ log.Done
 - **SetLogFolder(folderPath)** - Ustawia folder plików logów (domyślnie %TEMP%)
 - **SetLogFilename(filename)** - Ustawia nazwę pliku logów (domyślnie generowana)
 
-**Domyślna nazwa pliku**:  
-VBALog_[NazwaSkorosztytu]_[NazwaCaller]_[Data_Czas].log  
-np. VBALog_Test.xlsm_LogTest123_20250807_135623.log
-
 ## METODY USTAWIANIA:
 - **SetCaller(name)** - Ustawia nazwę wywołującej funkcji
 - **SetLevel(level)** - Poziom logowania (0-4)
 - **ShowTime(show)** - Kontrola czasu (domyślnie True)
 - **ShowCaller(show)** - Kontrola caller (domyślnie False)
-- **ShowLine(show)** - Kontrola linii separatora (domyślnie True)
+- **ShowLine(show)** - Kontrola linii separatora (domyślnie False)
 
-## METODY WYŚWIETLAJĄCE:
+## METODY INFORMACYJNE:
 - **Caller()** - [INF] Wyświetla aktualny caller
 - **Level()** - [INF] Wyświetla aktualny poziom
+- **PrintTime()** - [INF] Wyświetla aktualny czas (hh:mm:ss)
+- **PrintDate()** - [INF] Wyświetla aktualną datę (yyyy-mm-dd)
+- **Workbook()** - [INF] Wyświetla aktywny skoroszyt
+- **Sheet()** - [INF] Wyświetla aktywny arkusz
+- **PrintLine()** - Wyświetla linię separatora
 
 ## METODY LOGOWANIA:
 - **Start()** - START Rozpoczęcie z datą (+ CALLER)
@@ -82,3 +106,20 @@ np. VBALog_Test.xlsm_LogTest123_20250807_135623.log
 - **4 = Fatal** - [!!!] tylko krytyczne
 
 Start() i Done() ZAWSZE widoczne!
+
+## OBSŁUGA TABLIC:
+Logger v3.5 oferuje rozszerzoną obsługę tablic, pokazując ich zawartość i granice:
+
+```vba
+Dim arr(1 To 5) As Integer
+For i = 1 To 5: arr(i) = i * 10: Next i
+log.Var "arr", arr
+' Wyświetli: [VAR] arr = Array(1 to 5): [10, 20, 30, 40, 50]
+
+Dim matrix(1 To 2, 1 To 2) As Integer
+' ... wypełnianie wartościami ...
+log.Var "matrix", matrix
+' Wyświetli: [VAR] matrix = 2D Array(1 to 2, 1 to 2): [[11, 12], [21, 22]]
+```
+
+Dla dużych tablic pokazuje tylko pierwsze 10 elementów.
