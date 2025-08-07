@@ -7,12 +7,12 @@ Attribute VB_GlobalNameSpace = False
 Attribute VB_Creatable = False
 Attribute VB_PredeclaredId = False
 Attribute VB_Exposed = False
-' Logger v3.31 - STABLE
-' Uniwersalna klasa logująca z poprawioną kolizją nazw Format
+' Logger v3.4 - STABLE
+' Uniwersalna klasa logująca z funkcją zapisu do pliku
 ' Autor: barabasz
 ' Data utworzenia: 2025-08-04
-' Data wydania: 2025-08-04 10:38:09 UTC
-' Status: Przetestowana i stabilna wersja
+' Data wydania: 2025-08-07 12:15:05 UTC
+' Status: Wersja produkcyjna
 
 Option Explicit
 
@@ -27,15 +27,17 @@ Private currentLogLevel As Integer
 Private currentShowCaller As Boolean
 Private currentShowTime As Boolean
 Private currentShowLine As Boolean
+Private isLogToFile As Boolean
+Private logFileFolder As String
+Private logFileName As String
+Private logFilePath As String
 
-' Stałe poziomów logowania
 Private Const LOG_LEVEL_DBG As Integer = 0
 Private Const LOG_LEVEL_INFO As Integer = 1
 Private Const LOG_LEVEL_WARN As Integer = 2
 Private Const LOG_LEVEL_ERROR As Integer = 3
 Private Const LOG_LEVEL_FATAL As Integer = 4
 
-' Konstruktor klasy
 Private Sub Class_Initialize()
     currentCaller = "unknown"
     isProcessStarted = False
@@ -46,9 +48,11 @@ Private Sub Class_Initialize()
     currentShowCaller = False
     currentShowTime = True
     currentShowLine = True
+    isLogToFile = False
+    logFileFolder = Environ("TEMP")
+    logFileName = ""
+    logFilePath = ""
 End Sub
-
-' METODY USTAWIANIA
 
 Public Sub SetCaller(name As String)
     If Trim(name) = "" Then
@@ -78,7 +82,41 @@ Public Sub ShowLine(show As Boolean)
     currentShowLine = show
 End Sub
 
-' METODY WYŚWIETLAJĄCE AKTUALNE WARTOŚCI
+Public Sub SetLogFolder(folderPath As String)
+    If Trim(folderPath) = "" Then
+        logFileFolder = Environ("TEMP")
+    ElseIf Right(folderPath, 1) = "\" Then
+        logFileFolder = Left(folderPath, Len(folderPath) - 1)
+    Else
+        logFileFolder = folderPath
+    End If
+End Sub
+
+Public Sub SetLogFilename(filename As String)
+    logFileName = Trim(filename)
+End Sub
+
+Public Sub LogToFile(enable As Boolean)
+    isLogToFile = enable
+    
+    If enable Then
+        If logFilePath = "" Then
+            If logFileName = "" Then
+                logFileName = GenerateDefaultLogFilename()
+            End If
+            
+            logFilePath = logFileFolder & "\" & logFileName
+        End If
+        
+        Dim fileNum As Integer
+        fileNum = FreeFile
+        Open logFilePath For Append As #fileNum
+        Print #fileNum, "=== Log started at " & VBA.Format(Now(), "yyyy-mm-dd hh:mm:ss") & " ==="
+        Close #fileNum
+        
+        Info "Logging to file: " & logFilePath
+    End If
+End Sub
 
 Public Sub Caller()
     WriteLog " Current caller: " & currentCaller, "info"
@@ -102,8 +140,6 @@ Public Sub Level()
     End Select
     WriteLog " Current level: " & levelName, "info"
 End Sub
-
-' WŁAŚCIWOŚCI TYLKO DO ODCZYTU
 
 Public Property Get GetCaller() As String
     GetCaller = currentCaller
@@ -137,7 +173,27 @@ Public Property Get GetLogTime() As Variant
     End If
 End Property
 
-' METODY PRYWATNE
+Public Property Get GetLogFilePath() As String
+    GetLogFilePath = logFilePath
+End Property
+
+Public Property Get IsLoggingToFile() As Boolean
+    IsLoggingToFile = isLogToFile
+End Property
+
+Private Function GenerateDefaultLogFilename() As String
+    Dim wbName As String
+    
+    On Error Resume Next
+    wbName = ActiveWorkbook.Name
+    If Err.Number <> 0 Then
+        wbName = "Unknown"
+    End If
+    On Error GoTo 0
+    
+    GenerateDefaultLogFilename = "VBALog_" & wbName & "_" & currentCaller & "_" & _
+                                 VBA.Format(Now(), "yyyymmdd_hhmmss") & ".log"
+End Function
 
 Private Function ShouldLog(messageLogLevel As Integer) As Boolean
     ShouldLog = (messageLogLevel >= currentLogLevel)
@@ -204,6 +260,7 @@ Private Sub WriteLog(message As String, logType As String, Optional forceLog As 
     Dim messageLogLevel As Integer
     Dim callerPart As String
     Dim timePart As String
+    Dim logText As String
     
     currentTime = Now()
     If currentShowTime Then
@@ -263,7 +320,19 @@ Private Sub WriteLog(message As String, logType As String, Optional forceLog As 
     End If
     
     If forceLog Or messageLogLevel = -1 Or ShouldLog(messageLogLevel) Then
-        Debug.Print timePart & typeLabel & callerPart & message
+        logText = timePart & typeLabel & callerPart & message
+        
+        Debug.Print logText
+        
+        If isLogToFile Then
+            On Error Resume Next
+            Dim fileNum As Integer
+            fileNum = FreeFile
+            Open logFilePath For Append As #fileNum
+            Print #fileNum, logText
+            Close #fileNum
+            On Error GoTo 0
+        End If
     End If
 End Sub
 
@@ -282,8 +351,6 @@ Private Function FormatDuration(elapsedTime As Double) As String
     FormatDuration = VBA.Format(hours, "00") & ":" & VBA.Format(minutes, "00") & ":" & VBA.Format(seconds, "00")
 End Function
 
-' METODY LOGOWANIA
-
 Public Sub Start()
     Dim currentTime As Date
     Dim dateStr As String
@@ -295,6 +362,14 @@ Public Sub Start()
     
     If currentShowLine Then
         Debug.Print "******** --------------------------------------------------"
+        
+        If isLogToFile Then
+            Dim fileNum As Integer
+            fileNum = FreeFile
+            Open logFilePath For Append As #fileNum
+            Print #fileNum, "******** --------------------------------------------------"
+            Close #fileNum
+        End If
     End If
     
     startTime = currentTime
@@ -341,6 +416,14 @@ Public Sub Done()
     End If
     
     WriteLog message, "end", True
+    
+    If isLogToFile Then
+        Dim fileNum As Integer
+        fileNum = FreeFile
+        Open logFilePath For Append As #fileNum
+        Print #fileNum, "=== Log ended at " & VBA.Format(Now(), "yyyy-mm-dd hh:mm:ss") & " ==="
+        Close #fileNum
+    End If
 End Sub
 
 Public Sub Dbg(message As String)
@@ -418,8 +501,6 @@ Public Sub TryLog(operation As String)
     Dbg "Trying: " & operation
 End Sub
 
-' METODY PROGRESS
-
 Public Sub ProgressName(name As String)
     progressNameText = name
 End Sub
@@ -494,102 +575,3 @@ Public Sub Progress(current As Long)
     
     WriteLog message, percentLabel
 End Sub
-
-' ===============================================
-' DOKUMENTACJA LOGGER v3.31 - STABLE
-' ===============================================
-' 
-' STATUS: PRZETESTOWANA I STABILNA WERSJA
-' Autor: barabasz
-' Data wydania: 2025-08-04 10:38:09 UTC
-' 
-' POPRAWKA v3.31:
-' - Wszystkie wystąpienia Format() zmienione na VBA.Format()
-' - Rozwiązuje problem VBA Auto-Case Correction zmieniającego Format na format
-' - VBA.Format() jest bardziej jednoznaczne i nie podlega kolizjom nazw
-' - Zachowana pełna funkcjonalność i kompatybilność z v3.3
-' 
-' PODSTAWOWE UŻYCIE:
-' -----------------
-' Dim log As New Logger
-' log.SetCaller "MojeMakro"
-' log.SetLevel 1
-' log.ShowTime False
-' log.Start
-' log.Info "Wiadomość"
-' log.Duration
-' log.Done
-' 
-' METODY USTAWIANIA:
-' -----------------
-' SetCaller(name)           - Ustawia nazwę wywołującej funkcji
-' SetLevel(level)           - Poziom logowania (0-4)
-' ShowTime(show)            - Kontrola czasu (domyślnie True)
-' ShowCaller(show)          - Kontrola caller (domyślnie False)
-' ShowLine(show)            - Kontrola linii separatora (domyślnie True)
-'
-' METODY WYŚWIETLAJĄCE:
-' --------------------
-' Caller()                  - [INF] Wyświetla aktualny caller
-' Level()                   - [INF] Wyświetla aktualny poziom
-'
-' METODY LOGOWANIA:
-' ----------------
-' Start()                   - START Rozpoczęcie z datą (+ CALLER)
-' Done()                    - DONE! Zakończenie z czasem (+ CALLER)
-' Duration()                - [DUR] Aktualny czas trwania
-' Dbg(message)              - [DBG] Debug (poziom 0)
-' Info(message)             - [INF] Informacje (poziom 1)
-' Warn(message)             - [WRN] Ostrzeżenia (poziom 2)
-' Error(message)            - [ERR] Błędy (poziom 3)
-' Fatal(message)            - [!!!] Krytyczne (poziom 4, + CALLER)
-' Ok(message)               - [OK!] Sukces (poziom 1)
-' Var(name, value)          - [VAR] Zmienne (poziom 0)
-' Exception(msg)            - [EXC] Wyjątki VBA (poziom 3, + CALLER)
-' CatchException(msg)       - [EXC] Alias Exception
-' TryLog(operation)         - [DBG] Ryzykowne operacje
-'
-' METODY PROGRESS:
-' ---------------
-' ProgressName(name)        - Nazwa procesu
-' ProgressMax(value)        - Maksymalna wartość
-' ProgressStart()           - %000% Rozpoczęcie z pomiarem
-' Progress(current)         - %XXX% Aktualny postęp
-' ProgressEnd()             - %100% Zakończenie z czasem
-' 
-' WŁAŚCIWOŚCI (TYLKO ODCZYT):
-' --------------------------
-' GetCaller                 - Aktualny caller
-' GetLevel                  - Aktualny poziom
-' GetShowCaller             - Ustawienie caller
-' GetShowTime               - Ustawienie czasu
-' GetShowLine               - Ustawienie linii
-' GetLogTime                - Czas trwania (hh:mm:ss) lub False
-' 
-' POZIOMY LOGOWANIA:
-' -----------------
-' 0 = Debug   - [DBG], [VAR], TryLog (wszystkie)
-' 1 = Info    - [INF], [OK!], [DUR], Progress, Caller(), Level()
-' 2 = Warning - [WRN] i wyżej
-' 3 = Error   - [ERR], [EXC] i wyżej
-' 4 = Fatal   - [!!!] tylko krytyczne
-' 
-' Start() i Done() ZAWSZE widoczne!
-' 
-' KLUCZOWE FUNKCJONALNOŚCI:
-' ------------------------
-' ✅ Automatyczny pomiar czasu Start/Done i Progress
-' ✅ Bieżący pomiar czasu GetLogTime/Duration
-' ✅ Hierarchiczne poziomy logowania z filtrowaniem
-' ✅ Kontrola widoczności caller, czasu i linii separatora
-' ✅ Automatyczne logowanie wyjątków VBA
-' ✅ Inteligentne formatowanie różnych typów danych
-' ✅ Konsystentna konwencja nazw Set*/Get*
-' ✅ Metody wyświetlające aktualne wartości
-' ✅ Thread-safe w kontekście VBA
-' ✅ Brak zewnętrznych zależności
-' ✅ Odporność na VBA Auto-Case Correction
-' 
-' ===============================================
-' KONIEC DOKUMENTACJI LOGGER v3.31 - STABLE
-' ===============================================
