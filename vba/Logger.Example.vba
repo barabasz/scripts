@@ -1,104 +1,169 @@
 ' =================================================================
-' Logger v3.4 - Przykład użycia
+' Logger v3.5 - Przykłady użycia
 ' Autor: barabasz
-' Data: 2025-08-07 12:15:05
+' Data: 2025-08-07 13:57:54
 ' =================================================================
 
-' Podstawowy przykład z zapisem do pliku
-Sub TestLoggerFileLogging()
+' Przykład 1: Podstawowe użycie Logger
+Sub LoggerBasicExample()
     Dim log As New Logger
     
-    ' Podstawowe ustawienia
-    log.SetCaller "TestLoggerFileLogging"
-    log.SetLevel 1  ' Info level
+    ' Konfiguracja
+    log.SetCaller("LoggerBasicExample")
+    log.SetLevel(1)  ' Info level
     
-    ' SPOSÓB 1: Domyślne ustawienia pliku (TEMP + automatyczna nazwa)
-    log.LogToFile True  ' Włącza logowanie do pliku
-    
-    ' SPOSÓB 2: Własny folder + domyślna nazwa
-    'log.SetLogFolder "C:\Logs"
-    'log.LogToFile True
-    
-    ' SPOSÓB 3: Pełna konfiguracja
-    'log.SetLogFolder "C:\Logs"
-    'log.SetLogFilename "CustomLogger.log"
-    'log.LogToFile True
-    
+    ' Rozpoczęcie logowania
     log.Start
-    log.Info "Test logowania do pliku"
-    log.Var "LogFilePath", log.GetLogFilePath
-    log.Var "IsLoggingToFile", log.IsLoggingToFile
-    log.Warn "To jest ostrzeżenie testowe"
     
-    ' Symulacja błędu
+    ' Różne typy logów
+    log.Info "To jest informacja"
+    log.Warn "To jest ostrzeżenie"
+    log.Error "To jest błąd"
+    log.Ok "To jest sukces"
+    
+    ' Logowanie zmiennych
+    Dim testValue As Integer
+    testValue = 42
+    log.Var "testValue", testValue
+    
+    ' Zakończenie logowania
+    log.Done
+End Sub
+
+' Przykład 2: Fluent API
+Sub LoggerFluentExample()
+    Dim log As New Logger
+    
+    ' Wszystko w jednym łańcuchu
+    log.SetCaller("LoggerFluentExample").SetLevel(0).ShowCaller(True) _
+       .Start _
+       .Info("Start procesu") _
+       .Warn("Uwaga! Proces trwa...") _
+       .Ok("Sukces!") _
+       .Done
+       
+    ' Można też użyć bloku With
+    With log
+        .SetCaller "WithBlock"
+        .Start
+        .Info "Komunikat w bloku With"
+        .Done
+    End With
+End Sub
+
+' Przykład 3: Obsługa błędów
+Sub LoggerErrorHandlingExample()
+    Dim log As New Logger
+    log.SetCaller("LoggerErrorHandlingExample").Start
+    
     On Error Resume Next
     Dim x As Integer
     x = 1 / 0
+    
     If Err.Number <> 0 Then
-        log.Exception "Wystąpił błąd podczas dzielenia"
+        log.Exception "Wystąpił błąd dzielenia przez zero"
     End If
+    
     On Error GoTo 0
-    
-    log.Duration
     log.Done
-    
-    MsgBox "Logi zapisane do: " & log.GetLogFilePath, vbInformation, "Logger v3.4"
 End Sub
 
-' Przykład logowania procesu z pomiarem postępu
-Sub TestLoggerProgress()
+' Przykład 4: Logowanie procesu z postępem
+Sub LoggerProgressExample()
     Dim log As New Logger
     Dim i As Long
     
-    log.SetCaller "TestLoggerProgress"
-    log.SetLevel 0  ' Pokaż wszystkie logi
-    log.ShowCaller True
-    log.LogToFile True
+    log.SetCaller("LoggerProgressExample").Start
     
-    log.Start
-    log.Info "Rozpoczynam proces testowy"
-    
-    log.ProgressName "Przetwarzanie danych"
-    log.ProgressMax 100
+    ' Konfiguracja postępu
+    log.ProgressName("Przetwarzanie")
+    log.ProgressMax(100)
     log.ProgressStart
     
-    For i = 1 To 100
+    ' Symulacja procesu
+    For i = 10 To 100 Step 10
         ' Symulacja pracy
-        Application.Wait Now + TimeValue("00:00:01") / 100
-        
-        ' Aktualizacja postępu co 10 kroków
-        If i Mod 10 = 0 Then
-            log.Progress i
-        End If
+        Application.Wait Now + TimeValue("00:00:01") / 10
+        ' Aktualizacja postępu
+        log.Progress i
     Next i
     
     log.ProgressEnd
-    log.Ok "Proces zakończony sukcesem"
     log.Done
 End Sub
 
-' Przykład obsługi błędów
-Sub TestLoggerExceptions()
+' Przykład 5: Zaawansowane użycie logowania tablic
+Sub LoggerArrayExample()
+    Dim log As New Logger
+    log.SetCaller("LoggerArrayExample").Start
+    
+    ' Tablice jednowymiarowe
+    Dim strArray(1 To 3) As String
+    strArray(1) = "Pierwszy"
+    strArray(2) = "Drugi"
+    strArray(3) = "Trzeci"
+    log.Var "strArray", strArray
+    
+    ' Tablica z różnymi typami
+    Dim mixedArray(1 To 4) As Variant
+    mixedArray(1) = 100
+    mixedArray(2) = "Text"
+    mixedArray(3) = #2025-08-07#
+    mixedArray(4) = True
+    log.Var "mixedArray", mixedArray
+    
+    ' Tablica dwuwymiarowa
+    Dim matrix(1 To 2, 1 To 3) As Integer
+    Dim i As Integer, j As Integer
+    
+    For i = 1 To 2
+        For j = 1 To 3
+            matrix(i, j) = i * 10 + j
+        Next j
+    Next i
+    
+    log.Var "matrix", matrix
+    log.Done
+End Sub
+
+' Przykład 6: Nowe funkcje informacyjne
+Sub LoggerInfoExample()
+    Dim log As New Logger
+    log.SetCaller("LoggerInfoExample").Start
+    
+    ' Nowe funkcje informacyjne w v3.5
+    log.PrintTime     ' Wyświetla aktualny czas
+    log.PrintDate     ' Wyświetla aktualną datę
+    log.Workbook      ' Wyświetla aktywny skoroszyt
+    log.Sheet         ' Wyświetla aktywny arkusz
+    
+    ' Demonstracja PrintLine
+    log.PrintLine     ' Ręczne wyświetlenie linii separatora
+    log.Info "Linia separatora powyżej"
+    
+    ' Demonstracja formatowania bez dwukropka w Start i Done
+    log.Info "Zauważ brak dwukropka po nazwie callera w komunikatach START i DONE"
+    
+    ' Mierzenie czasu
+    log.Duration      ' Pokaż czas od Start
+    
+    log.Done
+End Sub
+
+' Przykład 7: Logowanie do pliku
+Sub LoggerFileExample()
     Dim log As New Logger
     
-    log.SetCaller "TestLoggerExceptions"
-    log.LogToFile True
+    ' Konfiguracja z Fluent API
+    log.SetCaller("LoggerFileExample") _
+       .SetLogFolder(Environ("TEMP")) _
+       .LogToFile(True) _
+       .Start
     
-    log.Start
+    log.Info "Ten komunikat zostanie zapisany do pliku"
+    log.Var "LogFilePath", log.GetLogFilePath
     
-    On Error GoTo ErrorHandler
-    
-    log.Dbg "Rozpoczynam operacje z obsługą błędów"
-    log.TryLog "Otwarcie nieistniejącego pliku"
-    
-    Open "C:\nieistniejacy_plik.txt" For Input As #1
-    
-    log.Ok "Plik otwarty pomyślnie"
     log.Done
-    Exit Sub
     
-ErrorHandler:
-    log.Exception "Błąd podczas operacji na pliku"
-    log.Fatal "Proces przerwany z powodu błędu"
-    log.Done
+    MsgBox "Logi zapisane do: " & log.GetLogFilePath, vbInformation, "Logger v3.5"
 End Sub
