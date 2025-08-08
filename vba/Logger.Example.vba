@@ -35,20 +35,10 @@ Sub LoggerFluentExample()
     Dim log As New Logger
     
     ' Wszystko w jednym łańcuchu
-    log.SetCaller("LoggerFluentExample").SetLevel(0).ShowCaller(True) _
-       .Start _
-       .Info("Start procesu") _
-       .Warn("Uwaga! Proces trwa...") _
-       .Ok("Sukces!") _
-       .Done
-       
-    ' Można też użyć bloku With
-    With log
-        .SetCaller "WithBlock"
-        .Start
-        .Info "Komunikat w bloku With"
-        .Done
-    End With
+    log.SetCaller("LoggerFluentExample").SetLevel(0).ShowCaller(True).Start
+    ' inny kod
+    .Info("Pewna informacja")
+    .Done
 End Sub
 
 ' Przykład 3: Obsługa błędów
@@ -126,27 +116,18 @@ Sub LoggerArrayExample()
     log.Done
 End Sub
 
-' Przykład 6: Nowe funkcje informacyjne
+' Przykład 6: Funkcje informacyjne
 Sub LoggerInfoExample()
     Dim log As New Logger
     log.SetCaller("LoggerInfoExample").Start
     
-    ' Nowe funkcje informacyjne w v3.5
     log.PrintTime     ' Wyświetla aktualny czas
     log.PrintDate     ' Wyświetla aktualną datę
     log.Workbook      ' Wyświetla aktywny skoroszyt
     log.Sheet         ' Wyświetla aktywny arkusz
-    
-    ' Demonstracja PrintLine
     log.PrintLine     ' Ręczne wyświetlenie linii separatora
-    log.Info "Linia separatora powyżej"
-    
-    ' Demonstracja formatowania bez dwukropka w Start i Done
-    log.Info "Zauważ brak dwukropka po nazwie callera w komunikatach START i DONE"
-    
-    ' Mierzenie czasu
     log.Duration      ' Pokaż czas od Start
-    
+
     log.Done
 End Sub
 
