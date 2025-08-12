@@ -6,12 +6,13 @@ Attribute VB_Name = "Logger"
 Attribute VB_GlobalNameSpace = False
 Attribute VB_Creatable = False
 Attribute VB_PredeclaredId = False
-Attribute VB_Exposed = False
-' Logger v3.5 - STABLE
+Attribute VB_Exposed = True
+' Logger v3.6
 ' Autor: barabasz
-' Data utworzenia: 2025-08-04
-' Data wydania: 2025-08-07 13:57:54 UTC
+' Data utworzenia: 2025-07-30
+' Data modyfikacji: 2025-08-12 11:50:00 UTC
 ' Status: Wersja produkcyjna
+' Repo: github.com/barabasz/scripts/tree/main/vba/Logger
 
 Option Explicit
 
@@ -31,7 +32,7 @@ Private logFileFolder As String
 Private logFileName As String
 Private logFilePath As String
 
-Private Const LOG_LEVEL_DBG As Integer = 0
+Private Const LOG_LEVEL_DEBUG As Integer = 0
 Private Const LOG_LEVEL_INFO As Integer = 1
 Private Const LOG_LEVEL_WARN As Integer = 2
 Private Const LOG_LEVEL_ERROR As Integer = 3
@@ -45,7 +46,7 @@ Private Sub Class_Initialize()
     progressNameText = ""
     progressMaxValue = 0
     isProgressStarted = False
-    currentLogLevel = LOG_LEVEL_DBG
+    currentLogLevel = LOG_LEVEL_DEBUG
     currentShowCaller = False
     currentShowTime = True
     currentShowLine = False
@@ -67,10 +68,10 @@ Public Function SetCaller(name As String) As Logger
 End Function
 
 Public Function SetLevel(logLevel As Integer) As Logger
-    If logLevel >= LOG_LEVEL_DBG And logLevel <= LOG_LEVEL_FATAL Then
+    If logLevel >= LOG_LEVEL_DEBUG And logLevel <= LOG_LEVEL_FATAL Then
         currentLogLevel = logLevel
     Else
-        currentLogLevel = LOG_LEVEL_DBG
+        currentLogLevel = LOG_LEVEL_DEBUG
     End If
     Set SetLevel = Me
 End Function
@@ -133,14 +134,14 @@ End Function
 ' === METODY WYŚWIETLAJĄCE AKTUALNE WARTOŚCI Z FLUENT API ===
 
 Public Function Caller() As Logger
-    WriteLog " Current caller: " & currentCaller, "info"
+    WriteLog " " & currentCaller, "this"
     Set Caller = Me
 End Function
 
 Public Function Level() As Logger
     Dim levelName As String
     Select Case currentLogLevel
-        Case LOG_LEVEL_DBG
+        Case LOG_LEVEL_DEBUG
             levelName = "Debug (0)"
         Case LOG_LEVEL_INFO
             levelName = "Info (1)"
@@ -160,29 +161,49 @@ End Function
 Public Function PrintTime() As Logger
     Dim currentTime As Date
     currentTime = Now()
-    WriteLog " Current time: " & VBA.Format(currentTime, "hh:mm:ss"), "info"
+    WriteLog " " & VBA.Format(currentTime, "hh:mm:ss"), "time"
     Set PrintTime = Me
 End Function
 
 Public Function PrintDate() As Logger
     Dim currentDate As Date
     currentDate = Now()
-    WriteLog " Current date: " & VBA.Format(currentDate, "yyyy-mm-dd"), "info"
+    WriteLog " " & VBA.Format(currentDate, "yyyy-mm-dd"), "date"
     Set PrintDate = Me
 End Function
-
+Public Function Cell() As Logger
+    On Error Resume Next
+    Dim cellInfo As String
+    
+    If Not Application.ActiveCell Is Nothing Then
+        If Application.Selection.Cells.Count > 1 Then
+            cellInfo = Application.Selection.Address(RowAbsolute:=False, ColumnAbsolute:=False) & " (" & Application.Selection.Cells.Count & " cells)"
+        Else
+            cellInfo = Application.ActiveCell.Address(RowAbsolute:=False, ColumnAbsolute:=False)
+            If Not IsEmpty(Application.ActiveCell.value) Then
+                cellInfo = cellInfo & " = " & Application.ActiveCell.value
+            End If
+        End If
+    Else
+        cellInfo = "<No active cell>"
+    End If
+    
+    On Error GoTo 0
+    WriteLog " " & cellInfo, "cell"
+    Set Cell = Me
+End Function
 Public Function Workbook() As Logger
     On Error Resume Next
     Dim wbName As String
     
     If Not Application.ActiveWorkbook Is Nothing Then
-        wbName = Application.ActiveWorkbook.Name
+        wbName = Application.ActiveWorkbook.name
     Else
         wbName = "<No active workbook>"
     End If
     
     On Error GoTo 0
-    WriteLog " Active workbook: " & wbName, "info"
+    WriteLog " " & wbName, "workbook"
     Set Workbook = Me
 End Function
 
@@ -192,16 +213,16 @@ Public Function Sheet() As Logger
     Dim wbName As String
     
     If Not Application.ActiveSheet Is Nothing Then
-        wsName = Application.ActiveSheet.Name
+        wsName = Application.ActiveSheet.name
         
         If Not Application.ActiveWorkbook Is Nothing Then
-            wbName = Application.ActiveWorkbook.Name
-            WriteLog " Active sheet: " & wsName & " (in " & wbName & ")", "info"
+            wbName = Application.ActiveWorkbook.name
+            WriteLog " " & wsName & " (in " & wbName & ")", "sheet"
         Else
-            WriteLog " Active sheet: " & wsName, "info"
+            WriteLog " " & wsName, "sheet"
         End If
     Else
-        WriteLog " Active sheet: <No active sheet>", "info"
+        WriteLog " <No active sheet>", "sheet"
     End If
     
     On Error GoTo 0
@@ -268,16 +289,17 @@ End Property
 
 Private Function GenerateDefaultLogFilename() As String
     Dim wbName As String
+    Dim timeStamp As String
     
     On Error Resume Next
-    wbName = ActiveWorkbook.Name
+    wbName = ActiveWorkbook.name
+    timeStamp = VBA.Format(Now(), "yyyymmdd_hhmmss")
     If Err.Number <> 0 Then
         wbName = "Unknown"
     End If
     On Error GoTo 0
     
-    GenerateDefaultLogFilename = "VBALog_" & wbName & "_" & currentCaller & "_" & _
-                                 VBA.Format(Now(), "yyyymmdd_hhmmss") & ".log"
+    GenerateDefaultLogFilename = "Logger_" & wbName & "_" & timeStamp & "_" & currentCaller & ".log"
 End Function
 
 Private Function ShouldLog(messageLogLevel As Integer) As Boolean
@@ -574,40 +596,58 @@ Private Sub WriteLog(message As String, logType As String, Optional forceLog As 
     Else
         Select Case LCase(logType)
             Case "start"
-                typeLabel = "START"
+                typeLabel = "[START]"
                 messageLogLevel = -1
             Case "end"
-                typeLabel = "DONE!"
+                typeLabel = "[DONE] "
                 messageLogLevel = -1
             Case "debug"
-                typeLabel = "[DBG]"
-                messageLogLevel = LOG_LEVEL_DBG
+                typeLabel = "[DBUG] "
+                messageLogLevel = LOG_LEVEL_DEBUG
             Case "info"
-                typeLabel = "[INF]"
+                typeLabel = "[INFO] "
                 messageLogLevel = LOG_LEVEL_INFO
             Case "warning"
-                typeLabel = "[WRN]"
+                typeLabel = "[WARN] "
                 messageLogLevel = LOG_LEVEL_WARN
             Case "error"
-                typeLabel = "[ERR]"
+                typeLabel = "[ERROR]"
                 messageLogLevel = LOG_LEVEL_ERROR
             Case "fatal"
-                typeLabel = "[!!!]"
+                typeLabel = "[FATAL]"
                 messageLogLevel = LOG_LEVEL_FATAL
             Case "success"
-                typeLabel = "[OK!]"
+                typeLabel = "[OKAY] "
                 messageLogLevel = LOG_LEVEL_INFO
             Case "variable"
-                typeLabel = "[VAR]"
-                messageLogLevel = LOG_LEVEL_DBG
+                typeLabel = "[VAR]  "
+                messageLogLevel = LOG_LEVEL_DEBUG
             Case "exception"
                 typeLabel = "[EXC]"
                 messageLogLevel = LOG_LEVEL_ERROR
             Case "elapsed"
-                typeLabel = "[DUR]"
+                typeLabel = "[DURA] "
+                messageLogLevel = LOG_LEVEL_INFO
+            Case "this"
+                typeLabel = "[THIS] "
+                messageLogLevel = LOG_LEVEL_INFO
+            Case "time"
+                typeLabel = "[TIME] "
+                messageLogLevel = LOG_LEVEL_INFO
+            Case "date"
+                typeLabel = "[DATE] "
+                messageLogLevel = LOG_LEVEL_INFO
+            Case "cell"
+                typeLabel = "[CELL] "
+                messageLogLevel = LOG_LEVEL_INFO
+            Case "sheet"
+                typeLabel = "[SHEET]"
+                messageLogLevel = LOG_LEVEL_INFO
+            Case "workbook"
+                typeLabel = "[WBOOK]"
                 messageLogLevel = LOG_LEVEL_INFO
             Case Else
-                typeLabel = "[INF]"
+                typeLabel = "[INFO] "
                 messageLogLevel = LOG_LEVEL_INFO
         End Select
     End If
