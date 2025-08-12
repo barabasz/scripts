@@ -2,7 +2,11 @@
 
 ## STATUS: WERSJA PRODUKCYJNA
 **Autor**: barabasz  
-**Data wydania**: 2025-08-12 11:47:54 UTC
+**Data wydania**: 2025-08-12 11:50:00 UTC
+
+## ZMIANY W v3.6:
+- Dodana metoda Cell() wyświetlająca informacje o aktywnej komórce
+- Drobne poprawki i optymalizacje kodu
 
 ## ZMIANY W v3.5:
 - Rozszerzona obsługa tablic z możliwością wyświetlania ich zawartości
@@ -58,24 +62,25 @@ End With
 - **ShowLine(show)** - Kontrola linii separatora (domyślnie False)
 
 ## METODY INFORMACYJNE:
-- **Caller()** - [INF] Wyświetla aktualny caller
-- **Level()** - [INF] Wyświetla aktualny poziom
-- **PrintTime()** - [INF] Wyświetla aktualny czas (hh:mm:ss)
-- **PrintDate()** - [INF] Wyświetla aktualną datę (yyyy-mm-dd)
-- **Workbook()** - [INF] Wyświetla aktywny skoroszyt
-- **Sheet()** - [INF] Wyświetla aktywny arkusz
+- **Caller()** - [THIS] Wyświetla aktualny caller
+- **Level()** - [INFO] Wyświetla aktualny poziom
+- **PrintTime()** - [TIME] Wyświetla aktualny czas (hh:mm:ss)
+- **PrintDate()** - [DATE] Wyświetla aktualną datę (yyyy-mm-dd)
+- **Cell()** - [CELL] Wyświetla informacje o aktywnej komórce
+- **Workbook()** - [WBOOK] Wyświetla aktywny skoroszyt
+- **Sheet()** - [SHEET] Wyświetla aktywny arkusz
 - **PrintLine()** - Wyświetla linię separatora
 
 ## METODY LOGOWANIA:
-- **Start()** - START Rozpoczęcie z datą (+ CALLER)
-- **Done()** - DONE! Zakończenie z czasem (+ CALLER)
-- **Duration()** - [DUR] Aktualny czas trwania
-- **Dbg(message)** - [DBG] Debug (poziom 0)
-- **Info(message)** - [INF] Informacje (poziom 1)
-- **Warn(message)** - [WRN] Ostrzeżenia (poziom 2)
-- **Error(message)** - [ERR] Błędy (poziom 3)
-- **Fatal(message)** - [!!!] Krytyczne (poziom 4, + CALLER)
-- **Ok(message)** - [OK!] Sukces (poziom 1)
+- **Start()** - [START] Rozpoczęcie z datą (+ CALLER)
+- **Done()** - [DONE] Zakończenie z czasem (+ CALLER)
+- **Duration()** - [DURA] Aktualny czas trwania
+- **Dbg(message)** - [DBUG] Debug (poziom 0)
+- **Info(message)** - [INFO] Informacje (poziom 1)
+- **Warn(message)** - [WARN] Ostrzeżenia (poziom 2)
+- **Error(message)** - [ERROR] Błędy (poziom 3)
+- **Fatal(message)** - [FATAL] Krytyczne (poziom 4, + CALLER)
+- **Ok(message)** - [OKAY] Sukces (poziom 1)
 - **Var(name, value)** - [VAR] Zmienne (poziom 0)
 - **Exception(msg)** - [EXC] Wyjątki VBA (poziom 3, + CALLER)
 - **CatchException(msg)** - [EXC] Alias Exception
@@ -99,16 +104,16 @@ End With
 - **IsLoggingToFile** - Czy logowanie do pliku jest włączone
 
 ## POZIOMY LOGOWANIA:
-- **0 = Debug** - [DBG], [VAR], TryLog (wszystkie)
-- **1 = Info** - [INF], [OK!], [DUR], Progress, Caller(), Level()
-- **2 = Warning** - [WRN] i wyżej
-- **3 = Error** - [ERR], [EXC] i wyżej
-- **4 = Fatal** - [!!!] tylko krytyczne
+- **0 = Debug** - [DBUG], [VAR], TryLog (wszystkie)
+- **1 = Info** - [INFO], [OKAY], [DURA], Progress, Caller(), Level()
+- **2 = Warning** - [WARN] i wyżej
+- **3 = Error** - [ERROR], [EXC] i wyżej
+- **4 = Fatal** - [FATAL] tylko krytyczne
 
 Start() i Done() ZAWSZE widoczne!
 
 ## OBSŁUGA TABLIC:
-Logger v3.5 oferuje rozszerzoną obsługę tablic, pokazując ich zawartość i granice:
+Logger v3.6 oferuje rozszerzoną obsługę tablic, pokazując ich zawartość i granice:
 
 ```vba
 Dim arr(1 To 5) As Integer
