@@ -1,8 +1,13 @@
-# DOKUMENTACJA LOGGER v3.6 - STABLE
+# DOKUMENTACJA LOGGER v3.65 - STABLE
 
 ## STATUS: WERSJA PRODUKCYJNA
 **Autor**: barabasz  
-**Data wydania**: 2025-08-12 11:50:00 UTC
+**Data wydania**: 2025-08-12 14:30:26 UTC
+
+## ZMIANY W v3.65:
+- Dodana obsługa formatowania obiektów Range w metodzie Var()
+- Usprawniona obsługa obiektów Excel i zwracanie ich adresów
+- Drobne poprawki i optymalizacje kodu
 
 ## ZMIANY W v3.6:
 - Dodana metoda Cell() wyświetlająca informacje o aktywnej komórce
@@ -93,6 +98,38 @@ End With
 - **Progress(current)** - %XXX% Aktualny postęp
 - **ProgressEnd()** - %100% Zakończenie z czasem
 
+## PRZYKŁAD UŻYCIA PROGRESS:
+```vba
+Sub PrzykładProgress()
+    Dim log As New Logger
+    Dim i As Long
+    
+    log.SetCaller("PrzykładProgress").Start
+    
+    ' Konfiguracja postępu
+    log.ProgressName("Import danych")  ' Opcjonalna nazwa procesu
+    log.ProgressMax(100)               ' Maksymalna wartość procesu
+    log.ProgressStart                  ' Rozpoczęcie śledzenia postępu
+    
+    ' Symulacja procesu
+    For i = 1 To 100
+        ' Tu umieść właściwy kod
+        Application.Wait Now + TimeValue("00:00:01") / 100  ' Tylko do symulacji
+        
+        If i Mod 10 = 0 Then
+            ' Aktualizacja postępu co 10%
+            log.Progress i
+        End If
+    Next i
+    
+    ' Zakończenie postępu
+    log.ProgressEnd
+    
+    log.Info "Wszystkie dane zostały zaimportowane"
+    log.Done
+End Sub
+```
+
 ## WŁAŚCIWOŚCI (TYLKO ODCZYT):
 - **GetCaller** - Aktualny caller
 - **GetLevel** - Aktualny poziom
@@ -112,19 +149,25 @@ End With
 
 Start() i Done() ZAWSZE widoczne!
 
-## OBSŁUGA TABLIC:
-Logger v3.6 oferuje rozszerzoną obsługę tablic, pokazując ich zawartość i granice:
+## OBSŁUGA TABLIC I OBIEKTÓW EXCEL:
+Logger v3.65 oferuje rozszerzoną obsługę tablic i obiektów Excel:
 
 ```vba
+' Obsługa tablic
 Dim arr(1 To 5) As Integer
 For i = 1 To 5: arr(i) = i * 10: Next i
 log.Var "arr", arr
 ' Wyświetli: [VAR] arr = Array(1 to 5): [10, 20, 30, 40, 50]
 
-Dim matrix(1 To 2, 1 To 2) As Integer
-' ... wypełnianie wartościami ...
-log.Var "matrix", matrix
-' Wyświetli: [VAR] matrix = 2D Array(1 to 2, 1 to 2): [[11, 12], [21, 22]]
+' Obsługa obiektów Range
+Dim rng As Range
+Set rng = Range("A1:B5")
+log.Var "rng", rng
+' Wyświetli: [VAR] rng = <Range: A1:B5>
+
+' Obsługa obiektów Worksheet
+log.Var "aktywny arkusz", ActiveSheet
+' Wyświetli: [VAR] aktywny arkusz = <Worksheet: Arkusz1>
 ```
 
 Dla dużych tablic pokazuje tylko pierwsze 10 elementów.
