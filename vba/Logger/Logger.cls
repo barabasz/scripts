@@ -7,10 +7,10 @@ Attribute VB_GlobalNameSpace = False
 Attribute VB_Creatable = False
 Attribute VB_PredeclaredId = False
 Attribute VB_Exposed = True
-' Logger v3.6
+' Logger v3.65
 ' Autor: barabasz
 ' Data utworzenia: 2025-07-30
-' Data modyfikacji: 2025-08-12 11:50:00 UTC
+' Data modyfikacji: 2025-08-12 12:53:48 UTC
 ' Status: Wersja produkcyjna
 ' Repo: github.com/barabasz/scripts/tree/main/vba/Logger
 
@@ -171,6 +171,7 @@ Public Function PrintDate() As Logger
     WriteLog " " & VBA.Format(currentDate, "yyyy-mm-dd"), "date"
     Set PrintDate = Me
 End Function
+
 Public Function Cell() As Logger
     On Error Resume Next
     Dim cellInfo As String
@@ -192,6 +193,7 @@ Public Function Cell() As Logger
     WriteLog " " & cellInfo, "cell"
     Set Cell = Me
 End Function
+
 Public Function Workbook() As Logger
     On Error Resume Next
     Dim wbName As String
@@ -319,252 +321,6 @@ Private Function ShouldShowCaller(logType As String) As Boolean
     End If
 End Function
 
-' === OBSŁUGA TABLIC ===
-
-Private Function IsArray(value As Variant) As Boolean
-    On Error GoTo ErrorHandler
-    
-    IsArray = VBA.IsArray(value)
-    Exit Function
-    
-ErrorHandler:
-    IsArray = False
-End Function
-
-Private Function GetArrayDimensions(arr As Variant) As Integer
-    On Error GoTo ErrorHandler
-    
-    If Not IsArray(arr) Then
-        GetArrayDimensions = 0
-        Exit Function
-    End If
-    
-    Dim dimensions As Integer
-    Dim tempUBound As Long
-    
-    dimensions = 0
-    Do
-        dimensions = dimensions + 1
-        tempUBound = UBound(arr, dimensions)
-    Loop
-    
-    GetArrayDimensions = dimensions
-    Exit Function
-    
-ErrorHandler:
-    GetArrayDimensions = dimensions - 1
-End Function
-
-Private Function FormatArrayElement(element As Variant) As String
-    On Error GoTo ErrorHandler
-    
-    If IsArray(element) Then
-        Dim dims As Integer
-        dims = GetArrayDimensions(element)
-        If dims > 0 Then
-            FormatArrayElement = "<Nested Array>"
-        Else
-            FormatArrayElement = "<Empty Array>"
-        End If
-        Exit Function
-    End If
-    
-    Select Case VarType(element)
-        Case vbEmpty
-            FormatArrayElement = "<Empty>"
-        Case vbNull
-            FormatArrayElement = "<Null>"
-        Case vbString
-            FormatArrayElement = """" & element & """"
-        Case vbBoolean
-            If element Then
-                FormatArrayElement = "True"
-            Else
-                FormatArrayElement = "False"
-            End If
-        Case vbDate
-            FormatArrayElement = "#" & VBA.Format(element, "yyyy-mm-dd") & "#"
-        Case vbObject
-            If element Is Nothing Then
-                FormatArrayElement = "<Nothing>"
-            Else
-                FormatArrayElement = "<Object>"
-            End If
-        Case vbError
-            FormatArrayElement = "<Error>"
-        Case Else
-            FormatArrayElement = CStr(element)
-    End Select
-    
-    Exit Function
-    
-ErrorHandler:
-    FormatArrayElement = "<Error>"
-End Function
-
-Private Function ArrayToString1D(arr As Variant) As String
-    On Error GoTo ErrorHandler
-    
-    Dim result As String
-    Dim i As Long, limit As Long
-    Dim lbound1 As Long, ubound1 As Long
-    
-    If Not IsArray(arr) Then
-        ArrayToString1D = "<Not an Array>"
-        Exit Function
-    End If
-    
-    lbound1 = LBound(arr, 1)
-    ubound1 = UBound(arr, 1)
-    
-    result = "Array(" & lbound1 & " to " & ubound1 & "): ["
-    
-    limit = ubound1 - lbound1 + 1
-    If limit > ARRAY_MAX_ELEMENTS Then
-        limit = ARRAY_MAX_ELEMENTS
-    End If
-    
-    For i = lbound1 To lbound1 + limit - 1
-        If i > lbound1 Then result = result & ", "
-        result = result & FormatArrayElement(arr(i))
-    Next i
-    
-    If limit < ubound1 - lbound1 + 1 Then
-        result = result & ", ..."
-    End If
-    
-    result = result & "]"
-    
-    ArrayToString1D = result
-    Exit Function
-    
-ErrorHandler:
-    ArrayToString1D = "Array(Error accessing elements)"
-End Function
-
-Private Function ArrayToString2D(arr As Variant) As String
-    On Error GoTo ErrorHandler
-    
-    Dim result As String
-    Dim i As Long, j As Long
-    Dim lbound1 As Long, ubound1 As Long
-    Dim lbound2 As Long, ubound2 As Long
-    Dim limit1 As Long, limit2 As Long
-    
-    If Not IsArray(arr) Then
-        ArrayToString2D = "<Not an Array>"
-        Exit Function
-    End If
-    
-    lbound1 = LBound(arr, 1)
-    ubound1 = UBound(arr, 1)
-    lbound2 = LBound(arr, 2)
-    ubound2 = UBound(arr, 2)
-    
-    result = "2D Array(" & lbound1 & " to " & ubound1 & ", " & _
-             lbound2 & " to " & ubound2 & "): ["
-    
-    limit1 = ubound1 - lbound1 + 1
-    limit2 = ubound2 - lbound2 + 1
-    
-    If limit1 > ARRAY_MAX_ELEMENTS \ 2 Then limit1 = ARRAY_MAX_ELEMENTS \ 2
-    If limit2 > ARRAY_MAX_ELEMENTS \ 2 Then limit2 = ARRAY_MAX_ELEMENTS \ 2
-    
-    For i = lbound1 To lbound1 + limit1 - 1
-        If i > lbound1 Then result = result & ", "
-        result = result & "["
-        
-        For j = lbound2 To lbound2 + limit2 - 1
-            If j > lbound2 Then result = result & ", "
-            result = result & FormatArrayElement(arr(i, j))
-        Next j
-        
-        If limit2 < ubound2 - lbound2 + 1 Then
-            result = result & ", ..."
-        End If
-        
-        result = result & "]"
-    Next i
-    
-    If limit1 < ubound1 - lbound1 + 1 Then
-        result = result & ", ..."
-    End If
-    
-    result = result & "]"
-    
-    ArrayToString2D = result
-    Exit Function
-    
-ErrorHandler:
-    ArrayToString2D = "2D Array(Error accessing elements)"
-End Function
-
-Private Function VariantToString(value As Variant) As String
-    On Error GoTo ErrorHandler
-    
-    If IsArray(value) Then
-        Dim dimensions As Integer
-        dimensions = GetArrayDimensions(value)
-        
-        Select Case dimensions
-            Case 0
-                VariantToString = "<Empty Array>"
-            Case 1
-                VariantToString = ArrayToString1D(value)
-            Case 2
-                VariantToString = ArrayToString2D(value)
-            Case Else
-                Dim i As Integer, dims As String
-                dims = ""
-                
-                For i = 1 To dimensions
-                    If i > 1 Then dims = dims & ", "
-                    On Error Resume Next
-                    dims = dims & LBound(value, i) & " to " & UBound(value, i)
-                    On Error GoTo 0
-                Next i
-                
-                VariantToString = dimensions & "D Array(" & dims & ")"
-        End Select
-    Else
-        Select Case VarType(value)
-            Case vbEmpty
-                VariantToString = "<Empty>"
-            Case vbNull
-                VariantToString = "<Null>"
-            Case vbBoolean
-                If value Then
-                    VariantToString = "True"
-                Else
-                    VariantToString = "False"
-                End If
-            Case vbByte, vbInteger, vbLong, vbSingle, vbDouble, vbCurrency, vbDecimal
-                VariantToString = CStr(value)
-            Case vbDate
-                VariantToString = VBA.Format(value, "yyyy-mm-dd hh:mm:ss")
-            Case vbString
-                VariantToString = Chr(34) & value & Chr(34)
-            Case vbObject
-                If value Is Nothing Then
-                    VariantToString = "<Nothing>"
-                Else
-                    VariantToString = "<Object: " & TypeName(value) & ">"
-                End If
-            Case vbError
-                VariantToString = "<Error: " & CStr(value) & ">"
-            Case vbVariant
-                VariantToString = "<Variant>"
-            Case Else
-                VariantToString = "<Unknown: " & TypeName(value) & ">"
-        End Select
-    End If
-    
-    Exit Function
-    
-ErrorHandler:
-    VariantToString = "<Error converting value>"
-End Function
-
 Private Sub WriteLog(message As String, logType As String, Optional forceLog As Boolean = False)
     Dim currentTime As Date
     Dim typeLabel As String
@@ -591,7 +347,19 @@ Private Sub WriteLog(message As String, logType As String, Optional forceLog As 
     End If
     
     If Left(logType, 1) = "%" And Right(logType, 1) = "%" Then
-        typeLabel = logType
+        ' Progress handling
+        Dim percent As Integer
+        percent = Val(Mid(logType, 2, 3))
+        
+        If percent = 0 Then
+            typeLabel = "[  0%] "
+        ElseIf percent = 100 Then
+            typeLabel = "[100%] "
+        ElseIf percent < 10 Then
+            typeLabel = "[  " & percent & "%] "
+        Else
+            typeLabel = "[ " & percent & "%] "
+        End If
         messageLogLevel = LOG_LEVEL_INFO
     Else
         Select Case LCase(logType)
@@ -623,7 +391,7 @@ Private Sub WriteLog(message As String, logType As String, Optional forceLog As 
                 typeLabel = "[VAR]  "
                 messageLogLevel = LOG_LEVEL_DEBUG
             Case "exception"
-                typeLabel = "[EXC]"
+                typeLabel = "[EXCPT]"
                 messageLogLevel = LOG_LEVEL_ERROR
             Case "elapsed"
                 typeLabel = "[DURA] "
@@ -808,7 +576,16 @@ End Function
 
 Public Function Var(variableName As String, value As Variant) As Logger
     Dim valueStr As String
+    
+    On Error Resume Next
+    ' Zakładamy że funkcja VariantToString jest dostępna w modułu zewnętrznym
     valueStr = VariantToString(value)
+    If Err.Number <> 0 Then
+        ' Awaryjnie gdy funkcja zewnętrzna jest niedostępna
+        valueStr = "<" & typeName(value) & ">"
+    End If
+    On Error GoTo 0
+    
     WriteLog " " & variableName & " = " & valueStr, "variable"
     Set Var = Me
 End Function
@@ -868,15 +645,10 @@ Public Function ProgressEnd() As Logger
     If isProgressStarted Then
         Dim elapsedTime As Double
         Dim durationStr As String
-        Dim percent As Integer
-        Dim percentLabel As String
         Dim message As String
         
         elapsedTime = Now() - progressStartTime
         durationStr = FormatDuration(elapsedTime)
-        
-        percent = 100
-        percentLabel = "%" & VBA.Format(percent, "000") & "%"
         
         If progressNameText <> "" Then
             message = " " & progressNameText & " (" & progressMaxValue & "/" & progressMaxValue & ", took " & durationStr & ")"
@@ -884,7 +656,7 @@ Public Function ProgressEnd() As Logger
             message = " Progress (" & progressMaxValue & "/" & progressMaxValue & ", took " & durationStr & ")"
         End If
         
-        WriteLog message, percentLabel
+        WriteLog message, "%100%"
         isProgressStarted = False
     Else
         Progress progressMaxValue
@@ -895,7 +667,7 @@ End Function
 
 Public Function Progress(current As Long) As Logger
     Dim percent As Integer
-    Dim percentLabel As String
+    Dim percentStr As String
     Dim message As String
     Dim timeInfo As String
     
@@ -905,7 +677,7 @@ Public Function Progress(current As Long) As Logger
         percent = 0
     End If
     
-    percentLabel = "%" & VBA.Format(percent, "000") & "%"
+    percentStr = "%" & VBA.Format(percent, "000") & "%"
     
     If current = progressMaxValue And isProgressStarted Then
         Dim elapsedTime As Double
@@ -924,6 +696,6 @@ Public Function Progress(current As Long) As Logger
         message = " Progress (" & current & "/" & progressMaxValue & timeInfo & ")"
     End If
     
-    WriteLog message, percentLabel
+    WriteLog message, percentStr
     Set Progress = Me
 End Function
