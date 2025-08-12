@@ -1,8 +1,8 @@
-# DOKUMENTACJA LOGGER v3.5 - STABLE
+# DOKUMENTACJA LOGGER v3.6 - STABLE
 
 ## STATUS: WERSJA PRODUKCYJNA
 **Autor**: barabasz  
-**Data wydania**: 2025-08-07 13:57:54 UTC
+**Data wydania**: 2025-08-12 11:47:54 UTC
 
 ## ZMIANY W v3.5:
 - Rozszerzona obsługa tablic z możliwością wyświetlania ich zawartości
@@ -10,20 +10,20 @@
 
 ## PODSTAWOWE UŻYCIE:
 ```vba
-' Tradycyjne użycie:
-Dim log As New Logger
-log.SetCaller "MojeMakro"
+'  Użycie jako AddIn z ToolkitAddin:
+Dim log As Logger
+Set log = ToolkitAddin.CreateLogger("MojeMakro")
+log.ShowCaller True
 log.SetLevel 1
 log.Start
 log.Info "Wiadomość"
 log.Done
 
-' Fluent API:
-Dim log As New Logger
-log.SetCaller("MojeMakro").SetLevel(1) _
-   .Start _
-   .Info("Wiadomość") _
-   .Done
+' Użycie w tym samym projekcie z fluent API:
+Dim log As New Logger("MojeMakro")
+log.ShowCaller(True).SetLevel(1).Start
+log.Info "Wiadomość"
+log.Done
 ```
 
 ## FLUENT API:
