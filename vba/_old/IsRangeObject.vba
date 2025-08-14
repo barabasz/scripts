@@ -1,17 +1,15 @@
-' ===================================================================
+' ------------------------------------------------------------
 ' Funkcja: IsRangeObject
-' Autor: barabasz
-' Data: 2025-08-12 14:21:29 UTC
-'
-' Cel: Sprawdza, czy podany obiekt jest zakresem Excel (Range)
-'
-' Parametry:
+' Opis: Sprawdza, czy podany obiekt jest zakresem Excel (Range)
+' Paramerty:
 '   - obj: Obiekt do sprawdzenia
-'
 ' Zwraca:
 '   - True: Jeśli obiekt jest zakresem Excel
 '   - False: W przeciwnym przypadku
-' ===================================================================
+' Autor: github/barabasz
+' Data utworzenia: 2025-08-05
+' Data modyfikacji: 2025-08-12 14:21:29 UTC
+' ------------------------------------------------------------
 Function IsRangeObject(obj As Variant) As Boolean
     On Error Resume Next
     IsRangeObject = (typeName(obj) = "Range")
