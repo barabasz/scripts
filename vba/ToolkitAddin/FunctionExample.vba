@@ -7,6 +7,7 @@ Option Explicit
 ' Zwraca:
 '   - True: informaja, kiedy zwraca True
 '   - False: informaja, kiedy zwraca False
+' Wymagania: [ewentualne zależności: inne funkcje, klasy, itp.]
 ' Autor: github/barabasz
 ' Data utworzenia: 2021-01-01
 ' Data modyfikacji: 2025-08-12 12:53:48 UTC
