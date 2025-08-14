@@ -1,41 +1,18 @@
-'====================================================================
-' SQLImportData - Wersja 1.3 - PRODUCTION
-' Data utworzenia: 2025-08-04
-' Data aktualizacji: 2025-08-04 13:59:10 UTC
-' Autor: barabasz
+' ------------------------------------------------------------
+' Funkcja: SQLImportData 1.25
 ' Opis: Funkcja VBA przepisująca dane z tabeli Excel do bazy SQL
-' Argumenty: sourceTable, targetTable, serverName, databaseName
-' Zwraca: True - sukces, False - błąd
-' Wymagania: Logger (github/barabasz/scripts/vba/Logger.cls)
-'====================================================================
-' CHANGELOG:
-' v1.3 (2025-08-04 13:59:10 UTC) - PRODUCTION - Przetestowana wersja produkcyjna
-'   - Zmiana poziomu logowania na 1 (Info) - mniej szczegółów w produkcji
-'   - Dodane wymagania Logger w komentarzach nagłówka
-'   - Oznaczenie jako wersja produkcyjna - stabilna i przetestowana
-'   - Zachowana pełna funkcjonalność v1.2
-'
-' v1.2 (2025-08-04 13:53:38 UTC) - Integracja z Logger v3.31
-'   - Zastąpienie Debug.Print klasą Logger
-'   - Dodanie instancji log z poziomem 0 i ShowCaller False
-'   - Wykorzystanie Progress tracking z Logger.Progress()
-'   - Lepsze formatowanie komunikatów i zmiennych
-'   - Poprawiona kolejność logowania dla progress
-'   - Usunięte redundantne log.Info i log.Duration
-'   - Zachowana pełna funkcjonalność i kompatybilność z v1.1
-'
-' v1.1 (2025-08-04 10:56:09 UTC) - Parametryzacja funkcji
-'   - Parametry przeniesione do argumentów funkcji
-'   - Usunięte hardkodowane nazwy komórek (zapytanie_plik, tabela, serwer, baza)
-'   - Argumenty: sourceTable, targetTable, serverName, databaseName
-'   - Większa elastyczność - funkcja może być wywołana z różnymi parametrami
-'   - Zaktualizowany komunikat błędu walidacji parametrów
-'
-' v1.0 (2025-08-04 10:51:42 UTC) - Konwersja z makra na funkcję
-'   - Zmiana nazwy: ImportData › SQLImportData
-'   - Konwersja: Sub › Function z wartością zwracaną Boolean
-'   - Bazuje na: ImportData v0.55 STABLE
-'====================================================================
+' Paramerty:
+'   - sourceTable - nazwa tabeli w Excel
+'   - targetTable - nazwa tabeli w SQL (z prefixem)
+'   - serverName - nazwa serwera
+'   - databaseName - nazwa bazy danych
+' Zwraca:
+'   - True - sukces, False - błąd
+' Autor: github/barabasz
+' Data utworzenia: 2025-08-04
+' Data modyfikacji: 2025-08-04 13:53:38 UTC
+' Ostatnia zmiana: integracja z Logger
+' ------------------------------------------------------------
 Function SQLImportData(sourceTable As String, targetTable As String, serverName As String, databaseName As String) As Boolean
     Dim conn As Object
     Dim rs As Object
@@ -48,22 +25,19 @@ Function SQLImportData(sourceTable As String, targetTable As String, serverName 
     Dim rowCount As Long
     Dim cellValue As Variant
     Dim values As String
-    
-    ' Inicjalizacja Logger
-    Dim log As New Logger
-    log.SetCaller "SQLImportData"
-    log.SetLevel 1
-    log.ShowCaller False
-    log.Start
-    
+
+    ' Konfiguracja loggera
+    Dim log As Logger: Set log = ToolkitAddin.CreateLogger
+    log.SetCaller("SQLImportData").ShowTime(True).ShowCaller(False).SetLevel(1).Start
+
     ' Inicjalizacja zwracanej wartości
     SQLImportData = False
     
     ' Logowanie parametrów
-    log.Var "sourceTable", sourceTable
-    log.Var "targetTable", targetTable
-    log.Var "serverName", serverName
-    log.Var "databaseName", databaseName
+    log.var "sourceTable", sourceTable
+    log.var "targetTable", targetTable
+    log.var "serverName", serverName
+    log.var "databaseName", databaseName
     
     ' Sprawdzenie parametrów
     If sourceTable = "" Or targetTable = "" Or serverName = "" Or databaseName = "" Then
@@ -87,8 +61,8 @@ Function SQLImportData(sourceTable As String, targetTable As String, serverName 
     rowCount = sourceRange.Rows.Count
     columnCount = sourceRange.Columns.Count
     
-    log.Var "rowCount", rowCount
-    log.Var "columnCount", columnCount
+    log.var "rowCount", rowCount
+    log.var "columnCount", columnCount
     log.Info "Rozmiar zakresu: " & rowCount & " wierszy x " & columnCount & " kolumn"
     
     If rowCount < 1 Then
