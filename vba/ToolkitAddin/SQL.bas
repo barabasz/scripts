@@ -443,3 +443,160 @@ TransactionError:
     log.Done
     Exit Function
 End Function
+
+' ------------------------------------------------------------
+' Funkcja: SQLGetColumnNamesFromTable
+' Opis: Funkcja zwracająca nazwy kolumn z podanej tabeli w bazie danych SQL Server
+' Paramerty:
+'   - targetTable - nazwa tabeli (z prefixem schematu, np. dbo.NazwaTabeli)
+'   - serverName - nazwa serwera
+'   - databaseName - nazwa bazy danych
+' Zwraca:
+'   - Tablicę nazw kolumn lub Empty, jeśli wystąpił błąd
+' Autor: github/barabasz
+' Data utworzenia: 2025-08-19
+' Data modyfikacji: 2025-08-19 12:30:18 UTC
+' ------------------------------------------------------------
+Function SQLGetColumnNamesFromTable(targetTable As String, serverName As String, databaseName As String) As Variant
+    Dim conn As Object
+    Dim rs As Object
+    Dim connectionString As String
+    Dim columnQuery As String
+    Dim columnNames() As String
+    Dim colCount As Long
+    Dim i As Long
+    Dim schemaName As String
+    Dim tableName As String
+    Dim dotPosition As Integer
+    
+    ' Konfiguracja loggera
+    Dim log As Logger: Set log = ToolkitAddin.CreateLogger
+    log.SetCaller("SQLGetColumnNamesFromTable").ShowTime(True).ShowCaller(False).SetLevel(1).Start
+    
+    ' Inicjalizacja zwracanej wartości
+    SQLGetColumnNamesFromTable = Empty
+    
+    ' Logowanie parametrów wejściowych
+    log.var "targetTable", targetTable
+    log.var "serverName", serverName
+    log.var "databaseName", databaseName
+    
+    ' Walidacja parametrów
+    If targetTable = "" Or serverName = "" Or databaseName = "" Then
+        log.Fatal "Wszystkie parametry muszą być wypełnione!"
+        log.Done
+        Exit Function
+    End If
+    
+    ' Przetworzenie nazwy tabeli (obsługa schematu)
+    dotPosition = InStr(targetTable, ".")
+    If dotPosition > 0 Then
+        schemaName = Left(targetTable, dotPosition - 1)
+        tableName = Mid(targetTable, dotPosition + 1)
+        log.Dbg "Wykryto schemat: " & schemaName & ", nazwa tabeli: " & tableName
+    Else
+        schemaName = "dbo" ' Domyślny schemat
+        tableName = targetTable
+        log.Dbg "Używam domyślnego schematu dbo, nazwa tabeli: " & tableName
+    End If
+    
+    ' Budowanie connection string
+    connectionString = "Provider=SQLOLEDB;Data Source=" & serverName & ";Initial Catalog=" & databaseName & ";Trusted_Connection=yes;"
+    log.Dbg "Connection string przygotowany"
+    
+    ' Utworzenie obiektu połączenia
+    Set conn = CreateObject("ADODB.Connection")
+    log.Dbg "Obiekt ADODB.Connection utworzony"
+    
+    ' Nawiązanie połączenia z bazą danych
+    On Error GoTo ConnectionError
+    log.Info "Nawiązywanie połączenia z bazą danych..."
+    conn.Open connectionString
+    log.Ok "Połączenie z bazą danych nawiązane"
+    On Error GoTo 0
+    
+    On Error GoTo QueryError
+    
+    ' Tworzenie zapytania pobierającego nazwy kolumn
+    columnQuery = "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS " & _
+                 "WHERE TABLE_SCHEMA = '" & schemaName & "' " & _
+                 "AND TABLE_NAME = '" & tableName & "' " & _
+                 "ORDER BY ORDINAL_POSITION"
+    
+    log.TryLog "Wykonywanie: " & columnQuery
+    
+    ' Wykonanie zapytania
+    Set rs = CreateObject("ADODB.Recordset")
+    rs.Open columnQuery, conn, 1, 1
+    
+    ' Sprawdzenie czy są jakiekolwiek wyniki
+    If rs.EOF Then
+        log.Error "Nie znaleziono kolumn dla tabeli " & targetTable
+        SQLGetColumnNamesFromTable = Empty
+        GoTo CleanUp
+    End If
+    
+    ' Zliczenie liczby kolumn
+    rs.MoveLast
+    colCount = rs.RecordCount
+    rs.MoveFirst
+    
+    ' Przygotowanie tablicy na nazwy kolumn
+    ReDim columnNames(1 To colCount)
+    
+    ' Wypełnienie tablicy nazwami kolumn
+    i = 1
+    Do Until rs.EOF
+        columnNames(i) = rs.Fields("COLUMN_NAME").Value
+        i = i + 1
+        rs.MoveNext
+    Loop
+    
+    log.Ok "Pobrano " & colCount & " nazw kolumn z tabeli " & targetTable
+    
+    ' Przypisanie wyniku
+    SQLGetColumnNamesFromTable = columnNames
+    
+CleanUp:
+    ' Zamknięcie recordset
+    If Not rs Is Nothing Then
+        If rs.State <> 0 Then rs.Close
+        Set rs = Nothing
+    End If
+    
+    ' Zamknięcie połączenia
+    If Not conn Is Nothing Then
+        If conn.State <> 0 Then conn.Close
+        Set conn = Nothing
+    End If
+    
+    log.Dbg "Zasoby zwolnione"
+    log.Done
+    Exit Function
+
+ConnectionError:
+    log.Exception "Błąd nawiązywania połączenia z bazą danych"
+    SQLGetColumnNamesFromTable = Empty
+    Set conn = Nothing
+    log.Done
+    Exit Function
+
+QueryError:
+    log.Exception "Błąd podczas wykonywania zapytania o kolumny"
+    
+    ' Zamknięcie recordset jeśli istnieje
+    If Not rs Is Nothing Then
+        If rs.State <> 0 Then rs.Close
+        Set rs = Nothing
+    End If
+    
+    ' Zamknięcie połączenia
+    If Not conn Is Nothing Then
+        If conn.State <> 0 Then conn.Close
+        Set conn = Nothing
+    End If
+    
+    SQLGetColumnNamesFromTable = Empty
+    log.Done
+    Exit Function
+End Function
