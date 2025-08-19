@@ -13,55 +13,56 @@ ToolkitAddin to kolekcja funkcji VBA zaprojektowanych z myślą o:
 ## Dostępne moduły
 
 ### Operacje na bazach danych SQL
-- **SQL.bas** - Funkcje do interakcji z SQL Server
+- **[SQL.bas](https://github.com/barabasz/scripts/blob/main/vba/ToolkitAddin/SQL.bas)** - Funkcje do interakcji z SQL Server
   - `SQLTableExists` - Sprawdza istnienie tabeli w bazie danych
   - `SQLImportData` - Importuje dane z tabeli Excel do SQL
   - `SQLTruncateTable` - Czyści dane w tabeli SQL
   - `SQLGetColumnNamesFromTable` - Pobiera nazwy kolumn z tabeli SQL
 
 ### Operacje na arkuszach i tabelach
-- **Sheets.bas** - Funkcje do obsługi arkuszy
+- **[Sheets.bas](https://github.com/barabasz/scripts/blob/main/vba/ToolkitAddin/Sheets.bas)** - Funkcje do obsługi arkuszy
   - `SheetExists` - Sprawdza istnienie arkusza
   - `RefreshSheet` - Przelicza wskazany arkusz
   
-- **Tables.bas** - Funkcje do zarządzania tabelami Excel
+- **[Tables.bas](https://github.com/barabasz/scripts/blob/main/vba/ToolkitAddin/Tables.bas)** - Funkcje do zarządzania tabelami Excel
   - `TableExists` - Sprawdza istnienie tabeli
   - `CountTableRows` - Zlicza wiersze w tabeli
   - `GetColumnNamesFromTable` - Pobiera nazwy kolumn z tabeli
   - `GetFirstValueFromTable` - Pobiera pierwszą wartość z kolumny tabeli
 
-- **PowerQuery.bas** - Funkcje do obsługi Power Query
+- **[PowerQuery.bas](https://github.com/barabasz/scripts/blob/main/vba/ToolkitAddin/PowerQuery.bas)** - Funkcje do obsługi Power Query
   - `RefreshQuery` - Odświeża zapytanie Power Query
   - `GetPowerQuerySourcePath` - Pobiera ścieżkę źródłową z zapytania
 
 ### Operacje na danych
-- **Arrays.bas** - Funkcje do obsługi tablic
+- **[Arrays.bas](https://github.com/barabasz/scripts/blob/main/vba/ToolkitAddin/Arrays.bas)** - Funkcje do obsługi tablic
   - `IsArraySafe` - Bezpiecznie sprawdza, czy zmienna jest tablicą
   - `GetArrayDimensions` - Zwraca liczbę wymiarów tablicy
   - `ArrayToString1D` / `ArrayToString2D` - Konwertuje tablice na reprezentację tekstową
   - `CompareArrays` - Porównuje zawartość dwóch tablic
 
-- **Convert.bas** - Funkcje konwersji danych
+- **[Convert.bas](https://github.com/barabasz/scripts/blob/main/vba/ToolkitAddin/Convert.bas)** - Funkcje konwersji danych
   - `HexToVBAColor` / `VBAToHexColor` - Konwersja kolorów między formatami
   - `VariantToString` - Konwertuje dowolny typ na string
 
-- **CSV.bas** - Operacje na danych CSV
+- **[CSV.bas](https://github.com/barabasz/scripts/blob/main/vba/ToolkitAddin/CSV.bas)** - Operacje na danych CSV
   - `StringArrayToCSV` - Konwertuje tablicę na format CSV
   - `AddSpacesToCSVString` - Formatuje string CSV
 
 ### Narzędzia pomocnicze
-- **Files.bas** - Operacje na plikach
+- **[Files.bas](https://github.com/barabasz/scripts/blob/main/vba/ToolkitAddin/Files.bas)** - Operacje na plikach
   - `GetFileName` / `GetFolderName` - Wyodrębnia nazwy z ścieżek
   - `FileExists` / `FolderExists` - Sprawdza istnienie plików i folderów
 
-- **Clipboard.bas** - Operacje na schowku
+- **[Clipboard.bas](https://github.com/barabasz/scripts/blob/main/vba/ToolkitAddin/Clipboard.bas)** - Operacje na schowku
   - `GetClipboard` - Odczytuje tekst ze schowka
   - `SetClipboard` - Zapisuje tekst do schowka
 
-- **Logger.cls** - Zaawansowany system logowania
+- **[Logger.cls](https://github.com/barabasz/scripts/blob/main/vba/ToolkitAddin/Logger.cls)** - Zaawansowany system logowania
   - Różne poziomy logowania (Debug, Info, Warning, Error, Fatal)
   - Śledzenie czasu wykonania operacji
   - Logowanie do pliku
+  - Szczegółowa dokumentacja dostępna w pliku [Logger.md](https://github.com/barabasz/scripts/blob/main/vba/ToolkitAddin/Logger.md)
 
 ## Przykłady użycia
 
