@@ -255,3 +255,144 @@ ErrorHandler:
     ArrayToString2D = "2D Array(Error accessing elements)"
 End Function
 
+' ------------------------------------------------------------
+' Funkcja: CompareArrays
+' Opis: Porównuje dwie tablice pod kątem zawartości (np. nazwy kolumn)
+' Paramerty:
+'   - array1: pierwsza tablica do porównania (Variant)
+'   - array2: druga tablica do porównania (Variant)
+'   - ignoreOrder: czy ignorować kolejność elementów (Boolean, opcjonalny, domyślnie True)
+'   - caseSensitive: czy porównanie ma być wrażliwe na wielkość liter (Boolean, opcjonalny, domyślnie False)
+' Zwraca:
+'   - True: jeśli tablice zawierają te same elementy
+'   - False: jeśli tablice różnią się lub wystąpił błąd
+' Autor: github/barabasz
+' Data utworzenia: 2025-08-19
+' Data modyfikacji: 2025-08-19 12:41:47 UTC
+' ------------------------------------------------------------
+Function CompareArrays(array1 As Variant, array2 As Variant, Optional ignoreOrder As Boolean = True, Optional caseSensitive As Boolean = False) As Boolean
+    On Error GoTo ErrorHandler
+    
+    ' Inicjalizacja loggera
+    Dim log As Logger
+    Set log = ToolkitAddin.CreateLogger("CompareArrays")
+    log.SetLevel(1) ' Tylko istotne komunikaty
+    
+    ' Domyślna wartość zwracana
+    CompareArrays = False
+    
+    ' Sprawdzenie czy oba parametry są tablicami
+    If Not IsArray(array1) Then
+        log.Error "Pierwszy parametr nie jest tablicą"
+        Exit Function
+    End If
+    
+    If Not IsArray(array2) Then
+        log.Error "Drugi parametr nie jest tablicą"
+        Exit Function
+    End If
+    
+    ' Sprawdzenie wymiarów tablic
+    Dim dims1 As Integer, dims2 As Integer
+    dims1 = GetArrayDimensions(array1)
+    dims2 = GetArrayDimensions(array2)
+    
+    If dims1 <> 1 Or dims2 <> 1 Then
+        log.Error "Funkcja obsługuje tylko tablice jednowymiarowe"
+        Exit Function
+    End If
+    
+    ' Pobieranie granic tablic
+    Dim lbound1 As Long, ubound1 As Long, lbound2 As Long, ubound2 As Long
+    Dim count1 As Long, count2 As Long
+    
+    lbound1 = LBound(array1)
+    ubound1 = UBound(array1)
+    lbound2 = LBound(array2)
+    ubound2 = UBound(array2)
+    
+    count1 = ubound1 - lbound1 + 1
+    count2 = ubound2 - lbound2 + 1
+    
+    ' Sprawdzenie czy tablice mają tę samą liczbę elementów
+    If count1 <> count2 Then
+        log.Warn "Tablice mają różną liczbę elementów: " & count1 & " vs " & count2
+        Exit Function
+    End If
+    
+    ' Jeśli pomijamy kolejność, użyjmy słownika do porównania
+    If ignoreOrder Then
+        Dim dict As Object
+        Set dict = CreateObject("Scripting.Dictionary")
+        dict.CompareMode = IIf(caseSensitive, vbBinaryCompare, vbTextCompare)
+        
+        Dim i As Long, j As Long
+        Dim elem As Variant
+        
+        ' Dodaj wszystkie elementy z pierwszej tablicy do słownika
+        For i = lbound1 To ubound1
+            elem = array1(i)
+            If Not dict.Exists(elem) Then
+                dict.Add elem, 1
+            Else
+                dict(elem) = dict(elem) + 1
+            End If
+        Next i
+        
+        ' Sprawdź elementy z drugiej tablicy w słowniku
+        For j = lbound2 To ubound2
+            elem = array2(j)
+            If dict.Exists(elem) Then
+                dict(elem) = dict(elem) - 1
+                If dict(elem) = 0 Then
+                    dict.Remove elem
+                End If
+            Else
+                log.Warn "Element '" & elem & "' z drugiej tablicy nie występuje w pierwszej tablicy"
+                Exit Function
+            End If
+        Next j
+        
+        ' Jeśli słownik jest pusty, wszystkie elementy zostały dopasowane
+        CompareArrays = (dict.Count = 0)
+    Else
+        ' Jeśli kolejność ma znaczenie, porównujemy element po elemencie
+        Dim matched As Boolean
+        matched = True
+        
+        For i = 0 To count1 - 1
+            ' Porównanie z uwzględnieniem case sensitivity
+            If caseSensitive Then
+                If array1(lbound1 + i) <> array2(lbound2 + i) Then
+                    matched = False
+                    log.Warn "Niezgodność na pozycji " & i & ": '" & array1(lbound1 + i) & "' vs '" & array2(lbound2 + i) & "'"
+                    Exit For
+                End If
+            Else
+                If StrComp(array1(lbound1 + i), array2(lbound2 + i), vbTextCompare) <> 0 Then
+                    matched = False
+                    log.Warn "Niezgodność na pozycji " & i & ": '" & array1(lbound1 + i) & "' vs '" & array2(lbound2 + i) & "'"
+                    Exit For
+                End If
+            End If
+        Next i
+        
+        CompareArrays = matched
+    End If
+    
+    ' Wyświetl podsumowanie
+    If CompareArrays Then
+        log.Ok "Tablice są zgodne" & IIf(ignoreOrder, " (ignorując kolejność)", " (z uwzględnieniem kolejności)")
+    Else
+        log.Info "Tablice są różne" & IIf(ignoreOrder, " (ignorując kolejność)", " (z uwzględnieniem kolejności)")
+    End If
+    
+CleanUp:
+    Set log = Nothing
+    Exit Function
+    
+ErrorHandler:
+    log.Exception "Błąd podczas porównywania tablic: " & Err.Description
+    CompareArrays = False
+    Resume CleanUp
+End Function
