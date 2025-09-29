@@ -26,7 +26,7 @@ init(autoreset=True)
 try:
     import exiftool
 except ImportError:
-    print(Fore.RED + "PyExifTool is not installed.")
+    print("PyExifTool is not installed.")
     print("Please install it using: pip install PyExifTool")
     sys.exit(1)
 
@@ -34,7 +34,7 @@ except ImportError:
 try:
     subprocess.run(['exiftool', '-ver'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True)
 except (subprocess.SubprocessError, FileNotFoundError):
-    print(Fore.RED + "ExifTool command-line tool is not installed or not in PATH.")
+    print("ExifTool command-line tool is not installed or not in PATH.")
     print("Please download and install it from: https://exiftool.org/")
     sys.exit(1)
 
@@ -47,8 +47,9 @@ INCLUDE_DOTFILES = False  # Whether to include files starting with a dot
 USE_FALLBACK_FOLDER = False  # Whether to move files without date to fallback folder
 OVERWRITE = False  # Whether to overwrite existing files during move operation
 ADD_TIMESTAMP_PREFIX = True  # Whether to add timestamp prefix to filenames
-TIMESTAMP_PREFIX_FORMAT = "YYYYMMDD-HHMMSS-"  # Format for the timestamp prefix
-OFFSET = 0  # Time offset in seconds to apply to EXIF dates
+TIMESTAMP_PREFIX_FORMAT = "YYYYMMDD-HHMMSS"  # Format for timestamp prefix
+OFFSET = -20  # Time offset in seconds to apply to EXIF date
+INTERFIX = "-AB-"  # Text to insert between timestamp prefix and original filename
 
 # Color definitions
 yellow = Fore.YELLOW
@@ -71,6 +72,7 @@ def print_header(directory):
     print(f"Add timestamp prefix: {cyan}{ADD_TIMESTAMP_PREFIX}{reset}")
     print(f"Timestamp prefix format: {cyan}{TIMESTAMP_PREFIX_FORMAT}{reset}")
     print(f"Time offset (seconds): {cyan}{OFFSET}{reset}")
+    print(f"Interfix: {cyan}{INTERFIX}{reset}")
     print(yellow + "Output:" + reset)
 
 def print_summary(total_files, image_files, files_moved_to_date, files_moved_to_fallback, created_folders):
@@ -81,13 +83,6 @@ def print_summary(total_files, image_files, files_moved_to_date, files_moved_to_
     print(f"Files moved to date folders: {green}{files_moved_to_date}{reset}")
     print(f"Files moved to fallback folder: {green}{files_moved_to_fallback}{reset}")
     print(f"Folders created: {green}{created_folders}{reset}")
-
-def generate_timestamp_prefix(date, format_string):
-    """Generate timestamp prefix based on the given date and format"""
-    if format_string == "YYYYMMDD-HHMMSS-":
-        return date.strftime("%Y%m%d-%H%M%S-")
-    # Add more format options as needed
-    return date.strftime("%Y%m%d-%H%M%S-")  # Default format
 
 def get_exif_date(file_path):
     """Extract creation date from EXIF data"""
@@ -104,11 +99,11 @@ def get_exif_date(file_path):
                     if isinstance(date_str, str):
                         if ":" in date_str[:10] and date_str[4:5] == ":":  # Format: 2024:05:09 18:01:05
                             date_str = date_str.replace(":", "-", 2)
-                        date = datetime.datetime.strptime(date_str[:19], "%Y-%m-%d %H:%M:%S")
-                        # Apply offset
+                        date_obj = datetime.datetime.strptime(date_str[:19], "%Y-%m-%d %H:%M:%S")
+                        # Apply offset if configured
                         if OFFSET != 0:
-                            date = date + datetime.timedelta(seconds=OFFSET)
-                        return date
+                            date_obj += datetime.timedelta(seconds=OFFSET)
+                        return date_obj
     except (KeyError, ValueError, IndexError) as e:
         print(f"Error extracting EXIF data from {file_path}: {str(e)}")
     except Exception as e:
@@ -138,6 +133,22 @@ def get_target_folder(date, time_day_starts, folder_template):
     else:
         return target_date.strftime("%Y%m%d")  # Default format
 
+def format_timestamp_prefix(date, format_template):
+    """Format timestamp prefix according to the template"""
+    if not date:
+        return ""
+        
+    # Replace placeholders with actual date components
+    formatted = format_template
+    formatted = formatted.replace("YYYY", date.strftime("%Y"))
+    formatted = formatted.replace("MM", date.strftime("%m"))
+    formatted = formatted.replace("DD", date.strftime("%d"))
+    formatted = formatted.replace("HH", date.strftime("%H"))
+    formatted = formatted.replace("MM", date.strftime("%M"))
+    formatted = formatted.replace("SS", date.strftime("%S"))
+    
+    return formatted
+
 def main():
     # Get current directory
     directory = os.getcwd()
@@ -162,7 +173,7 @@ def main():
             
         total_files += 1
         file_path = os.path.join(directory, item)
-        _, ext = os.path.splitext(item)
+        filename, ext = os.path.splitext(item)
         ext = ext.lstrip('.')
         
         # Check if the file is an image
@@ -192,21 +203,22 @@ def main():
             os.makedirs(target_folder)
             created_folders.add(folder_name)
         
-        # Prepare target filename with optional timestamp prefix
-        target_file_name = item
+        # Generate target filename with timestamp prefix if enabled
         if ADD_TIMESTAMP_PREFIX and date:
-            timestamp_prefix = generate_timestamp_prefix(date, TIMESTAMP_PREFIX_FORMAT)
-            target_file_name = f"{timestamp_prefix}{item}"
-        
+            timestamp_prefix = format_timestamp_prefix(date, TIMESTAMP_PREFIX_FORMAT)
+            target_filename = f"{timestamp_prefix}{INTERFIX}{item}"
+        else:
+            target_filename = item
+            
         # Move the file to the target folder
-        target_file = os.path.join(target_folder, target_file_name)
+        target_file = os.path.join(target_folder, target_filename)
         if os.path.exists(target_file) and not OVERWRITE:
             print(f"Skipped {item} ({date_str}) - file already exists in {folder_name}/")
             continue
             
         try:
             shutil.move(file_path, target_file)
-            print(f"Moved {item} ({date_str}) to {folder_name}/{target_file_name}")
+            print(f"Moved {item} ({date_str}) to {folder_name}/{target_filename}")
             
             if folder_name == FALLBACK_FOLDER:
                 files_moved_to_fallback += 1
@@ -214,7 +226,7 @@ def main():
                 files_moved_to_date += 1
                 
         except Exception as e:
-            print(f"Error moving {item} to {folder_name}/{target_file_name}: {str(e)}")
+            print(f"Error moving {item} to {folder_name}/: {str(e)}")
     
     # Print summary
     if image_files > 0:
