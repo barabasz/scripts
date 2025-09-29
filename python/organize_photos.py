@@ -3,7 +3,7 @@
 """
 Sort photos into date-based folders by reading EXIF creation date.
 Requires: ExifTool command-line tool and PyExifTool Python library.
-Version: 0.17
+Version: 0.18
 """
 
 import os
@@ -46,6 +46,9 @@ FOLDER_TEMPLATE = "YYYYMMDD"  # Template for folder names
 INCLUDE_DOTFILES = False  # Whether to include files starting with a dot
 USE_FALLBACK_FOLDER = False  # Whether to move files without date to fallback folder
 OVERWRITE = False  # Whether to overwrite existing files during move operation
+ADD_TIMESTAMP_PREFIX = True  # Whether to add timestamp prefix to filenames
+TIMESTAMP_PREFIX_FORMAT = "YYYYMMDD-HHMMSS-"  # Format for the timestamp prefix
+OFFSET = 0  # Time offset in seconds to apply to EXIF dates
 
 # Color definitions
 yellow = Fore.YELLOW
@@ -65,6 +68,9 @@ def print_header(directory):
     print(f"Include dotfiles: {cyan}{INCLUDE_DOTFILES}{reset}")
     print(f"Use fallback folder: {cyan}{USE_FALLBACK_FOLDER}{reset}")
     print(f"Overwrite existing files: {cyan}{OVERWRITE}{reset}")
+    print(f"Add timestamp prefix: {cyan}{ADD_TIMESTAMP_PREFIX}{reset}")
+    print(f"Timestamp prefix format: {cyan}{TIMESTAMP_PREFIX_FORMAT}{reset}")
+    print(f"Time offset (seconds): {cyan}{OFFSET}{reset}")
     print(yellow + "Output:" + reset)
 
 def print_summary(total_files, image_files, files_moved_to_date, files_moved_to_fallback, created_folders):
@@ -75,6 +81,13 @@ def print_summary(total_files, image_files, files_moved_to_date, files_moved_to_
     print(f"Files moved to date folders: {green}{files_moved_to_date}{reset}")
     print(f"Files moved to fallback folder: {green}{files_moved_to_fallback}{reset}")
     print(f"Folders created: {green}{created_folders}{reset}")
+
+def generate_timestamp_prefix(date, format_string):
+    """Generate timestamp prefix based on the given date and format"""
+    if format_string == "YYYYMMDD-HHMMSS-":
+        return date.strftime("%Y%m%d-%H%M%S-")
+    # Add more format options as needed
+    return date.strftime("%Y%m%d-%H%M%S-")  # Default format
 
 def get_exif_date(file_path):
     """Extract creation date from EXIF data"""
@@ -91,7 +104,11 @@ def get_exif_date(file_path):
                     if isinstance(date_str, str):
                         if ":" in date_str[:10] and date_str[4:5] == ":":  # Format: 2024:05:09 18:01:05
                             date_str = date_str.replace(":", "-", 2)
-                        return datetime.datetime.strptime(date_str[:19], "%Y-%m-%d %H:%M:%S")
+                        date = datetime.datetime.strptime(date_str[:19], "%Y-%m-%d %H:%M:%S")
+                        # Apply offset
+                        if OFFSET != 0:
+                            date = date + datetime.timedelta(seconds=OFFSET)
+                        return date
     except (KeyError, ValueError, IndexError) as e:
         print(f"Error extracting EXIF data from {file_path}: {str(e)}")
     except Exception as e:
@@ -175,15 +192,21 @@ def main():
             os.makedirs(target_folder)
             created_folders.add(folder_name)
         
+        # Prepare target filename with optional timestamp prefix
+        target_file_name = item
+        if ADD_TIMESTAMP_PREFIX and date:
+            timestamp_prefix = generate_timestamp_prefix(date, TIMESTAMP_PREFIX_FORMAT)
+            target_file_name = f"{timestamp_prefix}{item}"
+        
         # Move the file to the target folder
-        target_file = os.path.join(target_folder, item)
+        target_file = os.path.join(target_folder, target_file_name)
         if os.path.exists(target_file) and not OVERWRITE:
             print(f"Skipped {item} ({date_str}) - file already exists in {folder_name}/")
             continue
             
         try:
             shutil.move(file_path, target_file)
-            print(f"Moved {item} ({date_str}) to {folder_name}/")
+            print(f"Moved {item} ({date_str}) to {folder_name}/{target_file_name}")
             
             if folder_name == FALLBACK_FOLDER:
                 files_moved_to_fallback += 1
@@ -191,10 +214,9 @@ def main():
                 files_moved_to_date += 1
                 
         except Exception as e:
-            print(f"Error moving {item} to {folder_name}/: {str(e)}")
+            print(f"Error moving {item} to {folder_name}/{target_file_name}: {str(e)}")
     
     # Print summary
-
     if image_files > 0:
         print_summary(total_files, image_files, files_moved_to_date, 
                      files_moved_to_fallback, len(created_folders))
