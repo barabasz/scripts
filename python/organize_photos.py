@@ -23,12 +23,19 @@ except ImportError:
     sys.exit(1)
 init(autoreset=True)
 
+# Color definitions
+cyan = Fore.CYAN
+green = Fore.GREEN
+red = Fore.RED
+reset = Style.RESET_ALL
+yellow = Fore.YELLOW
+
 # Check if PyExifTool is installed
 try:
     import exiftool
 except ImportError:
-    print(red + "PyExifTool is not installed." + reset)
-    print("Please install it using: pip install PyExifTool")
+    print(red + "PyExifTool extension is not installed." + reset)
+    print("Please install it using: " + cyan + "pip install PyExifTool" + reset)
     sys.exit(1)
 
 # Check if ExifTool command-line tool is available
@@ -40,7 +47,7 @@ except (subprocess.SubprocessError, FileNotFoundError):
     sys.exit(1)
 
 # Configuration variables
-IMAGE_EXTENSIONS = ['jpg', 'jpeg', 'dng', 'orf', 'raw']
+IMAGE_EXTENSIONS = ['jpg', 'jpeg', 'dng', 'orf', 'ori', 'raw']
 FALLBACK_FOLDER = "UNKNOWN_DATE"  # Folder for images without EXIF date
 TIME_DAY_STARTS = "04:00:00"  # Time when the new day starts for photo grouping
 FOLDER_TEMPLATE = "YYYYMMDD"  # Template for folder names
@@ -51,13 +58,6 @@ ADD_TIMESTAMP_PREFIX = True  # Whether to add timestamp prefix to filenames
 TIMESTAMP_PREFIX_FORMAT = "YYYYMMDD-HHMMSS"  # Format for timestamp prefix
 OFFSET = 0  # Time offset in seconds to apply to EXIF dates
 INTERFIX = "-"  # Text to insert between timestamp prefix and original filename
-
-# Color definitions
-cyan = Fore.CYAN
-green = Fore.GREEN
-red = Fore.RED
-reset = Style.RESET_ALL
-yellow = Fore.YELLOW
 
 def print_header(directory):
     """Print script configuration header"""
@@ -156,6 +156,7 @@ def main():
     
     # Process each file in the directory
     for item in os.listdir(directory):
+        
         # Skip directories
         if os.path.isdir(os.path.join(directory, item)):
             continue
@@ -166,11 +167,11 @@ def main():
             
         total_files += 1
         file_path = os.path.join(directory, item)
-        _, ext = os.path.splitext(item)
-        ext = ext.lstrip('.')
+        file_name, file_ext = os.path.splitext(item)
+        file_ext = file_ext.lstrip('.').lower()
         
         # Check if the file is an image
-        if ext.lower() not in [x.lower() for x in IMAGE_EXTENSIONS]:
+        if file_ext not in [x.lower() for x in IMAGE_EXTENSIONS]:
             continue
             
         image_files += 1
@@ -200,10 +201,10 @@ def main():
             created_folders.add(folder_name)
         
         # Prepare target filename
-        target_filename = item
+        target_filename = file_name + '.' + file_ext
         if ADD_TIMESTAMP_PREFIX and date_with_offset:
             prefix = format_timestamp_prefix(date_with_offset, TIMESTAMP_PREFIX_FORMAT)
-            target_filename = f"{prefix}{INTERFIX}{item}"
+            target_filename = f"{prefix}{INTERFIX}{file_name}.{file_ext}"
         
         target_file = os.path.join(target_folder, target_filename)
         
