@@ -41,7 +41,7 @@ except (subprocess.SubprocessError, FileNotFoundError):
     sys.exit(1)
 
 # Configuration variables
-SCRIPT_VERSION = "0.01"
+SCRIPT_VERSION = "0.20"
 IMG_EXTENSIONS = ['jpg', 'jpeg', 'dng', 'orf', 'ori', 'raw']
 FALLBACK_FOLDER = "UNKNOWN_DATE"  # Folder for images without EXIF date
 TIME_DAY_STARTS = "04:00:00"  # Time when the new day starts for photo grouping
@@ -54,7 +54,6 @@ TIMESTAMP_PREFIX_FORMAT = "YYYYMMDD-HHMMSS"  # Format for timestamp prefix
 OFFSET = 0  # Time offset in seconds to apply to EXIF dates
 INTERFIX = "-"  # Text to insert between timestamp prefix and original filename
 INDENT = "    "  # Indentation for printed messages
-
 
 # Color definitions
 cyan, green, red, reset, yellow, gray = "", "", "", "", "", ""
