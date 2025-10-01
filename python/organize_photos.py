@@ -193,7 +193,7 @@ def process_files(file_list: List[Path]) -> tuple[int, int]:
         file_ext = "jpg" if file_ext == "jpeg" else file_ext  # Normalize jpeg to jpg
         exif_date = get_exif_date(file_path)
 
-        print(f"{INDENT}{gray}[{yellow}{file_ext.upper()}{gray}]{reset} {file_name} ", end="")
+        print(f"{INDENT}{gray}[{yellow}{file_ext.upper()}{gray}]{reset} {file_base} ", end="")
 
         if exif_date is None:
             print(f"({red}EXIF data not found{reset}) ", end="")
