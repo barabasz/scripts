@@ -4,7 +4,7 @@
 Sort photos into date-based folders by reading EXIF creation date.
 Requires: ExifTool command-line tool and PyExifTool Python library.
 Author: github.com/barabasz
-Version: 0.20
+Version: 0.21
 """
 
 import os
@@ -13,8 +13,37 @@ import shutil
 import datetime
 import subprocess
 import time
+import argparse
 from typing import Dict, List, Union
 from pathlib import Path
+
+# Parse command line arguments
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Organize photos into date-based folders by reading EXIF creation date.",
+        epilog="Example: organize_photos.py -o 3600 --fallback-folder UNSORTED"
+    )
+    
+    parser.add_argument("-o", "--offset", type=int, default=0,
+                        help="Time offset in seconds to apply to EXIF dates")
+    parser.add_argument("-f", "--fallback-folder", type=str,
+                        help="Folder name for images without EXIF date")
+    parser.add_argument("-t", "--timestamp-format", type=str,
+                        help="Format for timestamp prefix (YYYYMMDD-HHMMSS)")
+    parser.add_argument("-d", "--day-starts", type=str,
+                        help="Time when the new day starts (HH:MM:SS)")
+    parser.add_argument("-i", "--interfix", type=str,
+                        help="Text to insert between timestamp prefix and original filename")
+    parser.add_argument("-r", "--replace", action="store_true",
+                        help="Replace (overwrite) existing files during move operation")
+    parser.add_argument("--use-fallback", action="store_true",
+                        help="Move files without date to fallback folder")
+    parser.add_argument("--no-prefix", action="store_true",
+                        help="Do not add timestamp prefix to filenames")
+    parser.add_argument("--include-dotfiles", action="store_true",
+                        help="Include files starting with a dot")
+    
+    return parser.parse_args()
 
 # Check if Colorama is installed
 try:
@@ -41,7 +70,7 @@ except (subprocess.SubprocessError, FileNotFoundError):
     sys.exit(1)
 
 # Configuration variables
-SCRIPT_VERSION = "0.20"
+SCRIPT_VERSION = "0.21"
 IMG_EXTENSIONS = ['jpg', 'jpeg', 'dng', 'orf', 'ori', 'raw']
 FALLBACK_FOLDER = "UNKNOWN_DATE"  # Folder for images without EXIF date
 TIME_DAY_STARTS = "04:00:00"  # Time when the new day starts for photo grouping
@@ -137,7 +166,7 @@ def get_file_list(directory: Union[str, Path]) -> List[Path]:
         if not (os.access(f, os.R_OK) and os.access(f, os.W_OK)):
             continue
         # skip dotfiles
-        if f.name.startswith("."):
+        if not INCLUDE_DOTFILES and f.name.startswith("."):
             continue
         file_list.append(f)
     file_list.sort(key=lambda p: str(p).lower())
@@ -148,7 +177,8 @@ def get_image_types(file_list: List[Path]) -> Dict[str, int]:
     image_types: Dict[str, int] = {}
     for f in file_list:
         ext = f.suffix.lstrip(".").lower()
-        image_types[ext] = image_types.get(ext, 0) + 1
+        if ext in IMG_EXTENSIONS:
+            image_types[ext] = image_types.get(ext, 0) + 1
     return image_types
 
 def process_files(file_list: List[Path]) -> tuple[int, int]:
@@ -160,6 +190,7 @@ def process_files(file_list: List[Path]) -> tuple[int, int]:
         file_name = file_path.name
         file_base = file_path.stem
         file_ext = file_path.suffix.lstrip(".").lower()
+        file_ext = "jpg" if file_ext == "jpeg" else file_ext  # Normalize jpeg to jpg
         exif_date = get_exif_date(file_path)
 
         print(f"{INDENT}{gray}[{yellow}{file_ext.upper()}{gray}]{reset} {file_name} ", end="")
@@ -226,16 +257,17 @@ def get_file_prefix(date: Union[datetime.datetime, None]) -> str:
     """Get formatted timestamp prefix for filename"""
     if date is None:
         return ""
+    date_with_offset = date
     if OFFSET != 0:
-        date += datetime.timedelta(seconds=OFFSET)
-    return format_timestamp_prefix(date, TIMESTAMP_PREFIX_FORMAT)
+        date_with_offset = date + datetime.timedelta(seconds=OFFSET)
+    return format_timestamp_prefix(date_with_offset, TIMESTAMP_PREFIX_FORMAT)
 
 def format_timestamp_prefix(date: datetime.datetime, format_template: str) -> str:
     """Format a timestamp prefix according to the provided template"""
     if format_template == "YYYYMMDD-HHMMSS":
         return date.strftime("%Y%m%d-%H%M%S")
     # Add more format options if needed
-    return date.strftime("%Y%m%d-%H%M%S-")  # Default format
+    return date.strftime("%Y%m%d-%H%M%S")  # Default format
 
 def get_new_file_dir(date: Union[datetime.datetime, None]) -> Path:
     """Get the target directory for the file based on its date"""
@@ -245,9 +277,10 @@ def get_new_file_dir(date: Union[datetime.datetime, None]) -> Path:
         else:
             return Path.cwd()
     else:
+        date_with_offset = date
         if OFFSET != 0:
-            date += datetime.timedelta(seconds=OFFSET)
-        target_folder_name = get_target_folder_name(date, TIME_DAY_STARTS, FOLDER_TEMPLATE)
+            date_with_offset = date + datetime.timedelta(seconds=OFFSET)
+        target_folder_name = get_target_folder_name(date_with_offset, TIME_DAY_STARTS, FOLDER_TEMPLATE)
         target_folder = Path(target_folder_name)
     return target_folder
 
@@ -280,9 +313,36 @@ def get_target_folder_name(date: datetime.datetime, time_day_starts: str, folder
         return target_date.strftime("%Y%m%d")  # Default format
 
 def main() -> None:
- ## Variables
+    ## Variables
     start_time: float = time.time()
     source_dir: Path = Path.cwd()
+    
+    # Parse command line arguments
+    args = parse_args()
+    
+    # Update configuration based on command line arguments
+    global FALLBACK_FOLDER, TIME_DAY_STARTS, INCLUDE_DOTFILES, USE_FALLBACK_FOLDER
+    global OVERWRITE, ADD_TIMESTAMP_PREFIX, TIMESTAMP_PREFIX_FORMAT, OFFSET, INTERFIX
+    
+    if args.offset is not None:
+        OFFSET = args.offset
+    if args.fallback_folder:
+        FALLBACK_FOLDER = args.fallback_folder
+    if args.day_starts:
+        TIME_DAY_STARTS = args.day_starts
+    if args.timestamp_format:
+        TIMESTAMP_PREFIX_FORMAT = args.timestamp_format
+    if args.interfix:
+        INTERFIX = args.interfix
+    if args.replace:
+        OVERWRITE = True
+    if args.use_fallback:
+        USE_FALLBACK_FOLDER = True
+    if args.no_prefix:
+        ADD_TIMESTAMP_PREFIX = False
+    if args.include_dotfiles:
+        INCLUDE_DOTFILES = True
+    
     file_list: List[Path] = []
     image_list: List[Path] = []
     image_types: Dict[str, int] = {}
@@ -290,24 +350,28 @@ def main() -> None:
     image_count: int = 0
     done_count: int = 0
     dirs_count: int = 0
-    skipped_count: int = 0
- ## Main script execution
+    
+    ## Main script execution
     # Initialize colors and print header
     init_colors()
     print_header(source_dir)
+    
     # Get file and image lists
     file_list = get_file_list(source_dir)
     file_count = len(file_list)
     image_list = get_image_list(file_list)
     image_count = len(image_list)
-    image_types = get_image_types(image_list)
+    image_types = get_image_types(file_list)
+    
     # Print folder info
     print_folder_info(file_count, image_count, image_types)
+    
     # Process image files
     done_count, dirs_count = process_files(image_list)
+    
     # Print footer summary
     print_footer(image_count, done_count, dirs_count, start_time)
-    sys.exit(0)
+    return
 
 if __name__ == "__main__":
-    sys.exit(main())
+    main()
