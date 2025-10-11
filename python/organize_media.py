@@ -7,13 +7,15 @@ Author: github.com/barabasz
 """
 
 import argparse
+import sys
 import time
 from pathlib import Path
 
 # Configuration variables
 SCRIPT_NAME = "organize_media"
 SCRIPT_VERSION = "0.22"
-EXTENSIONS = ['jpg', 'jpeg', 'dng', 'orf', 'ori', 'raw']
+SCRIPT_DATE = "2024-06-10"
+EXTENSIONS = ['jpg', 'jpeg', 'dng', 'mov', 'mp4', 'orf', 'ori', 'raw']
 FALLBACK_FOLDER = "UNKNOWN_DATE"  # Folder for media files without EXIF date
 TIME_DAY_STARTS = "04:00:00"  # Time when the new day starts for media grouping
 FOLDER_TEMPLATE = "YYYYMMDD"  # Template for folder names
@@ -29,13 +31,15 @@ INTERFIX = ""  # Text to insert between timestamp prefix and original filename
 INDENT = "    "  # Indentation for printed messages
 VERBOSE = False  # Whether to print detailed information during processing
 SOURCE_DIR = Path.cwd()  # Directory to organize (default: current working directory)
+TEST_MODE = False  # Test mode: show what would be done without making changes
+SHOW_VERSION = False  # Whether to show version and exit
 
 def parse_args() -> None:
     """Parse command line arguments and update configuration variables."""
 
     global OFFSET, FOLDER_TEMPLATE, FILE_TEMPLATE, INTERFIX, TIME_DAY_STARTS
-    global FALLBACK_FOLDER, OVERWRITE, USE_FALLBACK_FOLDER, VERBOSE
-    global ADD_TIMESTAMP_PREFIX, EXTENSIONS, SOURCE_DIR, SCRIPT_NAME
+    global FALLBACK_FOLDER, OVERWRITE, USE_FALLBACK_FOLDER, VERBOSE, SHOW_VERSION
+    global ADD_TIMESTAMP_PREFIX, EXTENSIONS, SOURCE_DIR, SCRIPT_NAME, TEST_MODE
 
     parser = argparse.ArgumentParser(
         prog=SCRIPT_NAME,
@@ -64,7 +68,11 @@ def parse_args() -> None:
                         help="Replace (overwrite) existing files during move operation")
     parser.add_argument("-s", "--skip-fallback", action="store_true",
                         help="Do not move files without date to fallback folder")
-    parser.add_argument("-v", "--verbose", action="store_true",
+    parser.add_argument("-t", "--test", action="store_true",
+                        help="Test mode: show what would be done without making changes")
+    parser.add_argument("-v", "--version", action="store_true",
+                        help="Print version and exit")
+    parser.add_argument("-V", "--verbose", action="store_true",
                         help="Print detailed information during processing")
     # Flags
     parser.add_argument("--no-prefix", action="store_false", dest="add_timestamp_prefix",
@@ -87,7 +95,37 @@ def parse_args() -> None:
     OVERWRITE = args.replace
     USE_FALLBACK_FOLDER = not args.skip_fallback
     VERBOSE = args.verbose
+    TEST_MODE = args.test
+    SHOW_VERSION = args.version
     SOURCE_DIR = Path(args.directory).resolve()
+
+def printe(message: str, exit_code: int = 1) -> None:
+    """Print and exit."""
+    msg: str = message if exit_code == 0 else f"{_red}Error{_reset}: {message}"
+    print(msg)
+    sys.exit(exit_code)
+
+def check_args() -> None:
+    """Validate command line arguments and exit if invalid."""
+    msg: str = ""
+    code: int = 0
+
+    if SHOW_VERSION:
+        msg = f"{_green}{SCRIPT_NAME}{_reset} version {_cyan}{SCRIPT_VERSION}{_reset} ({SCRIPT_DATE})"
+    if not SOURCE_DIR.is_dir():
+        dir: str = f"{_cyan}{SOURCE_DIR}{_reset}"
+        msg = f"The specified directory '{dir}' does not exist or is not a directory."
+        code = 1
+    if OFFSET < -86400 or OFFSET > 86400:
+        msg = f"Offset must be between -86400 and 86400 seconds."
+        code = 1
+    if not EXTENSIONS:
+        msg = f"At least one file extension must be specified."
+        code = 1
+
+    if msg:
+        printe(msg, code)
+    return None
 
 def init_colors() -> None:
     """Initialize color codes for terminal output."""
@@ -116,10 +154,12 @@ def print_header() -> None:
     """Print script header with version information."""
     global start_time
     start_time = time.time()
-    print(f"{_green}Media Organizer Script v{SCRIPT_VERSION}{_reset}")
+    print(f"{_green}Media Organizer Script{_reset} ({_green}{SCRIPT_NAME}{_reset}) v{SCRIPT_VERSION}{_reset}")
     print(f"{_yellow}Settings:{_reset}")
     if VERBOSE:
         print(f"{INDENT}Verbose mode: {_cyan}ON{_reset}")
+    if TEST_MODE or VERBOSE:
+        print(f"{INDENT}Test mode: {_cyan}{'ON' if TEST_MODE else 'OFF'}{_reset}")
     print(f"{INDENT}Working directory: {_cyan}{SOURCE_DIR}{_reset}")
     print(f"{INDENT}Include extensions: {_cyan}{', '.join(EXTENSIONS)}{_reset}")
     print(f"{INDENT}Subfolder template: {_cyan}{FOLDER_TEMPLATE}{_reset}")
@@ -146,19 +186,20 @@ def print_header() -> None:
 def get_elapsed_time() -> float:
     """Get elapsed time since script start in milliseconds."""
     elapsed_time: float = (time.time() - start_time) * 1000
-    time_factor: str = "milliseconds" if elapsed_time < 1000 else "seconds"
+    time_factor: str = "ms" if elapsed_time < 1000 else "s"
     elapsed_time = elapsed_time / 1000 if elapsed_time >= 1000 else elapsed_time  # Convert to seconds if >= 1000 ms
     return f"{elapsed_time:.2f}", time_factor
 
 def print_footer() -> None:
     """Print script footer."""
     time_elapsed, time_factor = get_elapsed_time()
-    print(f"{_green}Media organization completed in {time_elapsed} {time_factor}.{_reset}")
+    print(f"{_green}{SCRIPT_NAME}{_reset} completed in {_cyan}{time_elapsed}{_reset} {time_factor}.{_reset}")
 
 def main() -> None:
     """Main function to organize media files."""
     init_colors()
     parse_args()
+    check_args()
     print_header()
     # Placeholder for the main logic to organize media files
     print_footer()
