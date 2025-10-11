@@ -131,7 +131,7 @@ def print_folder_info(file_count: int = 0, image_count: int = 0, image_types: Di
     print(yellow + "Directory:" + reset)
     print(f"{INDENT}Total files found: {cyan}{file_count}{reset}")
     print(f"{INDENT}Image files found: {cyan}{image_count}{reset}", end="")
-    print(f" ({', '.join(f'{cyan}{count}{reset} x {cyan}{ext.upper()}{reset}' for ext, count in image_types.items())})")
+    
     return
 
 def print_footer(images_count: int, done_count: int, dirs_count: int, start_time: float) -> None:
