@@ -9,44 +9,47 @@ Author: github.com/barabasz
 import argparse
 import sys
 import time
+from typing import Dict, List, Union
 from pathlib import Path
 
 # Configuration variables
 SCRIPT_NAME = "organize_media"
 SCRIPT_VERSION = "0.22"
 SCRIPT_DATE = "2024-06-10"
+
+ADD_TIMESTAMP_PREFIX = True  # Whether to add timestamp prefix to filenames
 EXTENSIONS = ['jpg', 'jpeg', 'dng', 'mov', 'mp4', 'orf', 'ori', 'raw']
 FALLBACK_FOLDER = "UNKNOWN_DATE"  # Folder for media files without EXIF date
-TIME_DAY_STARTS = "04:00:00"  # Time when the new day starts for media grouping
-FOLDER_TEMPLATE = "YYYYMMDD"  # Template for folder names
 FILE_TEMPLATE = "YYYYMMDD-HHMMSS"  # Format for timestamp prefix
-
+FOLDER_TEMPLATE = "YYYYMMDD"  # Template for folder names
 INCLUDE_DOTFILES = False  # Whether to include files starting with a dot
-USE_FALLBACK_FOLDER = False  # Whether to move files without date to fallback folder
-OVERWRITE = False  # Whether to overwrite existing files during move operation
-ADD_TIMESTAMP_PREFIX = True  # Whether to add timestamp prefix to filenames
-
-OFFSET = 0  # Time offset in seconds to apply to EXIF dates
-INTERFIX = ""  # Text to insert between timestamp prefix and original filename
 INDENT = "    "  # Indentation for printed messages
-VERBOSE = False  # Whether to print detailed information during processing
+INTERFIX = ""  # Text to insert between timestamp prefix and original filename
+OFFSET = 0  # Time offset in seconds to apply to EXIF dates
+OVERWRITE = False  # Whether to overwrite existing files during move operation
+QUIET_MODE = False  # Whether to suppress non-error messages and prompts
+YES_TO_ALL = False  # Whether to assume 'yes' to all prompts
+SHOW_VERSION = False  # Whether to show version and exit
 SOURCE_DIR = Path.cwd()  # Directory to organize (default: current working directory)
 TEST_MODE = False  # Test mode: show what would be done without making changes
-SHOW_VERSION = False  # Whether to show version and exit
+TIME_DAY_STARTS = "04:00:00"  # Time when the new day starts for media grouping
+USE_FALLBACK_FOLDER = False  # Whether to move files without date to fallback folder
+VERBOSE_MODE = False  # Whether to print detailed information during processing
 
 def parse_args() -> None:
     """Parse command line arguments and update configuration variables."""
 
     global OFFSET, FOLDER_TEMPLATE, FILE_TEMPLATE, INTERFIX, TIME_DAY_STARTS
-    global FALLBACK_FOLDER, OVERWRITE, USE_FALLBACK_FOLDER, VERBOSE, SHOW_VERSION
+    global FALLBACK_FOLDER, OVERWRITE, USE_FALLBACK_FOLDER, VERBOSE_MODE, SHOW_VERSION
     global ADD_TIMESTAMP_PREFIX, EXTENSIONS, SOURCE_DIR, SCRIPT_NAME, TEST_MODE
+    global QUIET_MODE, INCLUDE_DOTFILES, YES_TO_ALL
 
     parser = argparse.ArgumentParser(
         prog=SCRIPT_NAME,
         formatter_class=argparse.RawDescriptionHelpFormatter,
         description="Organize media files into date-based folders by reading EXIF creation date.\n" \
         f"Requires {_green}ExifTool{_reset} command-line tool and {_green}PyExifTool{_reset} Python library.\n" \
-        f"Default schema: filename.ext → {_yellow}{FOLDER_TEMPLATE}/{FILE_TEMPLATE}-filename.ext{_reset}",
+        f"Default schema: {get_schema()}",
         epilog=f"Example: {_green}{SCRIPT_NAME}{_reset} -o 3600 --fallback-folder UNSORTED"
     )
     # Options with arguments
@@ -64,6 +67,8 @@ def parse_args() -> None:
                         help=f"Time when the new day starts (default: '{_yellow}HH:MM:SS{_reset}')")
     parser.add_argument("-F", "--fallback-folder", type=str, default=FALLBACK_FOLDER, metavar="FOLDER",
                         help=f"Folder name for images without EXIF date (default: '{_yellow}UNKNOWN_DATE{_reset}')")
+    parser.add_argument("-q", "--quiet", action="store_true",
+                        help="Quiet mode (suppress non-error messages)")
     parser.add_argument("-r", "--replace", action="store_true",
                         help="Replace (overwrite) existing files during move operation")
     parser.add_argument("-s", "--skip-fallback", action="store_true",
@@ -74,6 +79,10 @@ def parse_args() -> None:
                         help="Print version and exit")
     parser.add_argument("-V", "--verbose", action="store_true",
                         help="Print detailed information during processing")
+    parser.add_argument("-y", "--yes", action="store_true",
+                        help="Assume 'yes' to all prompts")
+    
+
     # Flags
     parser.add_argument("--no-prefix", action="store_false", dest="add_timestamp_prefix",
                         help="Do not add timestamp prefix to filenames")
@@ -84,20 +93,22 @@ def parse_args() -> None:
     args = parser.parse_args()
     
     # Update configuration based on command line arguments
-    OFFSET = args.offset
-    FOLDER_TEMPLATE = args.directory_template
-    EXTENSIONS = [ext.lower().lstrip('.') for ext in args.extensions]
-    FILE_TEMPLATE = args.file_template
     ADD_TIMESTAMP_PREFIX = args.add_timestamp_prefix
-    INTERFIX = args.interfix
-    TIME_DAY_STARTS = args.new_day
+    EXTENSIONS = [ext.lower().lstrip('.') for ext in args.extensions]
     FALLBACK_FOLDER = args.fallback_folder
+    FILE_TEMPLATE = args.file_template
+    FOLDER_TEMPLATE = args.directory_template
+    INTERFIX = args.interfix
+    OFFSET = args.offset
     OVERWRITE = args.replace
-    USE_FALLBACK_FOLDER = not args.skip_fallback
-    VERBOSE = args.verbose
-    TEST_MODE = args.test
+    QUIET_MODE = args.quiet
     SHOW_VERSION = args.version
     SOURCE_DIR = Path(args.directory).resolve()
+    TEST_MODE = args.test
+    TIME_DAY_STARTS = args.new_day
+    USE_FALLBACK_FOLDER = not args.skip_fallback
+    VERBOSE_MODE = args.verbose
+    YES_TO_ALL = args.yes
 
 def printe(message: str, exit_code: int = 1) -> None:
     """Print and exit."""
@@ -155,15 +166,17 @@ def print_header() -> None:
     global start_time
     start_time = time.time()
     print(f"{_green}Media Organizer Script{_reset} ({_green}{SCRIPT_NAME}{_reset}) v{SCRIPT_VERSION}{_reset}")
+    if QUIET_MODE and not VERBOSE_MODE:
+        return
     print(f"{_yellow}Settings:{_reset}")
-    if VERBOSE:
+    if VERBOSE_MODE:
         print(f"{INDENT}Verbose mode: {_cyan}ON{_reset}")
-    if TEST_MODE or VERBOSE:
+    if TEST_MODE or VERBOSE_MODE:
         print(f"{INDENT}Test mode: {_cyan}{'ON' if TEST_MODE else 'OFF'}{_reset}")
     print(f"{INDENT}Working directory: {_cyan}{SOURCE_DIR}{_reset}")
     print(f"{INDENT}Include extensions: {_cyan}{', '.join(EXTENSIONS)}{_reset}")
     print(f"{INDENT}Subfolder template: {_cyan}{FOLDER_TEMPLATE}{_reset}")
-    if VERBOSE:
+    if VERBOSE_MODE:
         print(f"{INDENT}Add timestamp prefix: {_cyan}{ADD_TIMESTAMP_PREFIX}{_reset}")
     if ADD_TIMESTAMP_PREFIX:
         print(f"{INDENT}Filename format: {_cyan}{FILE_TEMPLATE}{_reset}")
@@ -177,7 +190,7 @@ def print_header() -> None:
 
     if OFFSET != 0:
         print(f"{INDENT}Time offset: {_cyan}{OFFSET} seconds{_reset}")
-    if INTERFIX or VERBOSE:
+    if INTERFIX or VERBOSE_MODE:
         print(f"{INDENT}Interfix: {_cyan}{INTERFIX}{_reset}")
     # Print schema
     print(f"{_yellow}Schema:{_reset}")
@@ -190,10 +203,42 @@ def get_elapsed_time() -> float:
     elapsed_time = elapsed_time / 1000 if elapsed_time >= 1000 else elapsed_time  # Convert to seconds if >= 1000 ms
     return f"{elapsed_time:.2f}", time_factor
 
-def print_footer() -> None:
+def print_footer(media_count: int, done_count: int, dirs_count: int) -> None:
     """Print script footer."""
     time_elapsed, time_factor = get_elapsed_time()
+    print(f"Total media files: {media_count}")
+    print(f"Total processed files: {done_count}")
+    print(f"Total directories created: {dirs_count}")
     print(f"{_green}{SCRIPT_NAME}{_reset} completed in {_cyan}{time_elapsed}{_reset} {time_factor}.{_reset}")
+
+
+def prompt_user() -> None:
+    """Ask user for confirmation to continue."""
+    if YES_TO_ALL or TEST_MODE:
+        return
+    answer = input(f"{_yellow}Do you want to continue? (Y/n): {_reset}").strip().lower()
+    if answer in ('n', 'no'):
+        printe("Operation cancelled by user.", 0)
+
+def get_file_list(directory: Path) -> List[Path]:
+    """Get a list of files in the specified directory."""
+    return []
+
+def get_media_list(file_list: List[Path]) -> List[Path]:
+    """Filter and return a list of media files based on extensions."""
+    return [f for f in file_list if f.suffix in EXTENSIONS]
+
+def get_media_types(file_list: List[Path]) -> Dict[str, int]:
+    """Get a dictionary of media file types and their counts."""
+    pass
+
+def print_folder_info(file_count: int, media_count: int, media_types: Dict[str, int]) -> None:
+    """Print information about the folder and media files."""
+    pass
+
+def process_files(media_list: List[Path]) -> Union[int, int]:
+    """Process and organize media files."""
+    return 0, 0
 
 def main() -> None:
     """Main function to organize media files."""
@@ -201,8 +246,27 @@ def main() -> None:
     parse_args()
     check_args()
     print_header()
-    # Placeholder for the main logic to organize media files
-    print_footer()
+
+    # Initialize counters and lists
+    file_list: List[Path] = []
+    media_list: List[Path] = []
+    media_types: Dict[str, int] = {}
+    file_count: int = 0
+    media_count: int = 0
+    done_count: int = 0
+    dirs_count: int = 0
+    file_list = get_file_list(SOURCE_DIR)
+    file_count = len(file_list)
+    media_list = get_media_list(file_list)
+    media_count = len(media_list)
+    media_types = get_media_types(file_list)
+    print_folder_info(file_count, media_count, media_types)
+    prompt_user()
+
+    # Process files
+    done_count, dirs_count = process_files(media_list)
+
+    print_footer(media_count, done_count, dirs_count)
 
 # Run the main function
 if __name__ == "__main__":
