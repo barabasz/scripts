@@ -33,7 +33,7 @@ except (subprocess.SubprocessError, FileNotFoundError):
 
 # Configuration variables
 SCRIPT_NAME = "organize_media"
-SCRIPT_VERSION = "0.3"
+SCRIPT_VERSION = "0.3.2"
 SCRIPT_DATE = "2025-10-12"
 SCRIPT_AUTHOR = "github.com/barabasz"
 
@@ -347,7 +347,7 @@ def get_media_objects(file_list: list[Path], folder_info: Dict) -> list[FileItem
 
 def get_file_list(directory: Path) -> list[Path]:
     """Get a sorted list of file Paths in the specified directory."""
-    files = [Path(file) for file in os.listdir(directory) if os.path.isfile(file)]
+    files = [directory / file for file in os.listdir(directory) if (directory / file).is_file()]
     return sorted(files, key=lambda x: x.name.lower())
 
 
@@ -433,14 +433,13 @@ def process_files(media_list: List[FileItem], folder_info: Dict) -> None:
                     target_dir.mkdir(parents=True, exist_ok=True)
                     created_dirs.append(file.subdir)
             # Move/rename file
-            target_path = file.get_new_path()
-            if target_path.exists() and not OVERWRITE:
+            if file.path_new.exists() and not OVERWRITE:
                 file.error = "Target file already exists."
                 skipped_files.append(file.name_old)
                 continue
             if not TEST_MODE:
                 try:
-                    file.path_old.rename(target_path)
+                    file.path_old.rename(file.path_new)
                 except Exception as e:
                     file.error = f"Error moving file: {str(e)}"
                     skipped_files.append(file.name_old)
@@ -477,24 +476,24 @@ def process_files(media_list: List[FileItem], folder_info: Dict) -> None:
 class FileItem:
     """Class representing a media file with its properties."""
     # Attributes
-    subdir: Path
-    path_old: Path
-    path: Path
-    stem: str
-    ext_old: str
-    ext: str
-    error: str = ""
-    name_old: str
-    name: str
-    size: int
-    readable: bool
-    writable: bool
-    prefix: str
-    exif_date: datetime.datetime | None
     date_time: datetime.datetime
+    error: str = ""
+    exif_date: datetime.datetime | None
     exif_type: str | None
+    ext_new: str
+    ext_old: str
     is_valid: bool
+    name_new: str
+    name_old: str
+    path_new: Path
+    path_old: Path
+    prefix: str
+    readable: bool
+    size: int
+    stem: str
+    subdir: Path
     type: str
+    writable: bool
 
     def get_subdir(self) -> str | None:
         """Format a subdirectory name according to the provided template"""
@@ -560,14 +559,16 @@ class FileItem:
         return None
 
     def get_new_name(self) -> str:
+        """Generate new filename based on prefix, interfix, stem, and extension."""
         name: str = ""
         if self.prefix:
             name += self.prefix + "-"
         if self.interfix:
             name += self.interfix + "-"
-        return f"{name}{self.stem}.{self.ext}"
+        return f"{name}{self.stem}.{self.ext_new}"
     
     def get_new_path(self) -> Path:
+        """Get new absolute path for the file based on settings."""
         if USE_SUBDIRS:
             return Path(SOURCE_DIR / self.subdir / self.name_new).absolute()
         else:
@@ -586,7 +587,7 @@ class FileItem:
         self.name_old = path.name
         self.stem = path.stem
         self.ext_old = path.suffix.lstrip(".")
-        self.ext = self.get_new_extension()
+        self.ext_new = self.get_new_extension()
 
         self.size = path.stat().st_size
         if self.size == 0:
@@ -635,21 +636,32 @@ class FileItem:
 
 def main() -> None:
     """Main function to organize media files."""
+    # Initialize colors and parse arguments
     init_colors()
+    # Parse command line arguments
     parse_args()
+    # Validate conditions
     check_conditions()
+    # Print header (settings and schema)
     print_header()
+    # Get list of files and folder info
     file_list = get_file_list(Path(SOURCE_DIR))
     folder_info = get_folder_info(file_list)
+    # Print folder information
     print_folder_info(folder_info)
+    # Get media objects and print file information
     files = get_media_objects(file_list, folder_info)
     print_files_info(files, folder_info)
+    # If no valid files, exit
     if folder_info['valid_files'] == 0:
         print("No valid media files to process. Exiting.")
         sys.exit(0)
+    # Prompt user for confirmation to continue
     if not prompt_user(folder_info):
         sys.exit(0)
+    # Process valid media files
     process_files(files, folder_info)
+    # Print footer (summary)
     print_footer(folder_info)
 
 # Run the main function
