@@ -33,14 +33,14 @@ except (subprocess.SubprocessError, FileNotFoundError):
 
 # Configuration variables
 SCRIPT_NAME = "organize_media"
-SCRIPT_VERSION = "0.3.3"
+SCRIPT_VERSION = "0.4"
 SCRIPT_DATE = "2025-10-12"
 SCRIPT_AUTHOR = "github.com/barabasz"
 
 EXTENSIONS = ['jpg', 'jpeg', 'dng', 'mov', 'mp4', 'orf', 'ori', 'raw']
 CHANGE_EXTENSIONS = {'jpeg': 'jpg', 'tiff': 'tif'}  # Map of extensions to change
-EXIF_DATE_TAGS = ['EXIF:DateTimeOriginal', 'EXIF:CreateDate', 'XMP:CreateDate']
-FALLBACK_FOLDER = "UNKNOWN_DATE"  # Folder for media files without EXIF date
+EXIF_DATE_TAGS = ['EXIF:DateTimeOriginal', 'EXIF:CreateDate', 'XMP:CreateDate', 'QuickTime:CreateDate']
+FALLBACK_FOLDER = "_UNKNOWN"  # Folder for media files without EXIF date
 FILE_TEMPLATE = "YYYYMMDD-HHMMSS"  # Format for timestamp prefix
 FOLDER_TEMPLATE = "YYYYMMDD"  # Template for folder names
 INDENT = "    "  # Indentation for printed messages
@@ -96,7 +96,7 @@ def parse_args() -> None:
     parser.add_argument("-i", "--interfix", type=str, default=INTERFIX, metavar="TEXT",
                         help=f"Text to insert between timestamp prefix and original filename (default: '{_yellow}-{_reset}')")
     parser.add_argument("-n", "--new-day", type=str, default=TIME_DAY_STARTS, metavar="HH:MM:SS",
-                        help=f"Time when the new day starts (default: '{_yellow}HH:MM:SS{_reset}')")
+                        help=f"Time when the new day starts (default: '{_yellow}04:00:00{_reset}')")
     parser.add_argument("-N", "--no-normalize", action="store_false", dest="normalize_ext",
                         help="Do not normalize extensions to 3-letter lowercase")
     parser.add_argument("-F", "--fallback-folder", type=str, default=FALLBACK_FOLDER, metavar="FOLDER",
@@ -385,6 +385,22 @@ def print_folder_info(folder_info: Dict) -> None:
         print(f"{INDENT}Matching files: {_cyan}{folder_info['media_count']}{_reset}")
 
 
+def print_invalid_files(files: List[FileItem]) -> None:
+    """Print files not valid."""
+    print(f"{_yellow}Files not valid:{_reset}")
+    for file in files:
+        if not file.is_valid:
+            print(f"{INDENT}{_cyan}{file.name_old}{_reset}: {_red}{file.error}{_reset}")
+
+
+def print_files_errors(files: List[FileItem]) -> None:
+    """Print files with errors."""
+    print(f"{_yellow}Files with errors:{_reset}")
+    for file in files:
+        if file.is_valid and file.error:
+            print(f"{INDENT}{_cyan}{file.name_old}{_reset}: {_red}{file.error}{_reset}")
+
+
 def print_files_info(files: List[FileItem], folder_info: Dict) -> None:
     """Print summary information about the list of FileItem objects."""
     total_files = len(files)
@@ -398,10 +414,7 @@ def print_files_info(files: List[FileItem], folder_info: Dict) -> None:
         print(f"{INDENT}Valid files: {_cyan}{valid_files}{_reset}")
         print(f"{INDENT}Invalid files: {_cyan}{invalid_files}{_reset}")
     if (VERBOSE_MODE or SHOW_FILES_ERRORS) and invalid_files > 0:
-        print(f"{_yellow}Files with errors:{_reset}")
-        for file in files:
-            if not file.is_valid:
-                print(f"{INDENT}{_cyan}{file.name_old}{_reset}: {_red}{file.error}{_reset}")
+        print_invalid_files(files)
 
 
 def print_file_info(file: FileItem) -> None:
@@ -412,9 +425,24 @@ def print_file_info(file: FileItem) -> None:
             print(f"{INDENT}{prop}: {_red}{value}{_reset}")
         elif prop == 'is_valid' and not value:
             print(f"{INDENT}{prop}: {_red}{value}{_reset}")
-        elif value not in (None, "", [], {}):
+        elif prop != 'metadata' and value not in (None, "", [], {}):
             print(f"{INDENT}{prop}: {_cyan}{value}{_reset}")
 
+def print_process_file(file: FileItem, item: int, total_items: int) -> None:
+    """Print information about a file being processed."""
+    if VERBOSE_MODE:
+        old = f"{_cyan}{file.name_old:<13}{_reset}"
+        arr = f"{_yellow}→{_reset}"
+        sub = f"{_cyan}{file.subdir}{_reset}/" if USE_SUBDIRS else ""
+        new = f"{_cyan}{file.name_new}{_reset}"
+        exf = f"{file.exif_date if file.exif_date else 'EXIF data not found'}"
+        print(f"{INDENT}{old} ({_cyan if file.exif_date else _red}{exf}{_reset}) {arr} {sub}{new}")
+    else:
+        per = (item / total_items) * 100
+        itm = f"{_cyan}{file.name_old}{_reset}"
+        cls = "\r\033[K\r"
+        msg = f"{cls}{INDENT}File {item} of {total_items}: {itm} ({per:.0f}%)"
+        print(msg, end="", flush=True)
 
 def process_files(media_list: List[FileItem], folder_info: Dict) -> None:
     """Process and organize media files."""
@@ -444,28 +472,23 @@ def process_files(media_list: List[FileItem], folder_info: Dict) -> None:
                     file.error = f"Error moving file: {str(e)}"
                     skipped_files.append(file.name_old)
                     continue
-            
-            if VERBOSE_MODE:
-                old = f"{_cyan}{file.name_old:<13}{_reset}"
-                arr = f"{_yellow}→{_reset}"
-                sub = f"{_cyan}{file.subdir}{_reset}/" if USE_SUBDIRS else ""
-                new = f"{_cyan}{file.name_new}{_reset}"
-                exf = f"{file.exif_date if file.exif_date else 'EXIF data not found'}"
-                print(f"{INDENT}{old} ({_cyan if file.exif_date else _red}{exf}{_reset}) {arr} {sub}{new}")
-            else:
-                percentage = (item / total_items) * 100
-                msg = f"\r\033[K\r{INDENT}File {item} of {total_items}: {_cyan}{file.name_old}{_reset} ({percentage:.0f}%)"
-                print(msg, end="", flush=True)
+            # Print process information
+            print_process_file(file, item, total_items)
             item += 1
-
-            if not TEST_MODE:
-                processed_files.append(file.name_old)
+            processed_files.append(file.name_old)
         else:
-            if not TEST_MODE:
-                skipped_files.append(file.name_old)
+            skipped_files.append(file.name_old)
     
-    if not VERBOSE_MODE:
+    processed_files_count = len(processed_files)
+
+    if not VERBOSE_MODE and processed_files_count > 0:
         print(f"\r\033[K\r{INDENT}Done.")
+    if processed_files_count == 0 and not QUIET_MODE:
+        print(f"{INDENT}No files were processed.")
+
+    # Print files with errors if any
+    if (VERBOSE_MODE or SHOW_FILES_ERRORS) and len(skipped_files) > 0:
+        print_files_errors(media_list)
 
     folder_info['processed_files'] = processed_files
     folder_info['skipped_files'] = skipped_files
@@ -521,9 +544,9 @@ class FileItem:
     def get_prefix(self) -> str:
         """Format a timestamp prefix according to the provided template"""
         if FILE_TEMPLATE == "YYYYMMDD-HHMMSS":
-            return self.exif_date.strftime("%Y%m%d-%H%M%S")
+            return self.date_time.strftime("%Y%m%d-%H%M%S")
         # Add more format options if needed
-        return self.exif_date.strftime("%Y%m%d-%H%M%S")  # Default format
+        return self.date_time.strftime("%Y%m%d-%H%M%S")  # Default format
 
     def read_exif_metadata(self) -> bool:
         """Read all EXIF metadata at once and store it"""
@@ -649,7 +672,7 @@ class FileItem:
 
 def main() -> None:
     """Main function to organize media files."""
-    # Initialize colors and parse arguments
+    # Load color codes
     init_colors()
     # Parse command line arguments
     parse_args()
