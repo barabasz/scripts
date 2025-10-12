@@ -7,20 +7,39 @@ Author: github.com/barabasz
 """
 
 import argparse
-from datetime import datetime
+from datetime import date, datetime, timedelta
+import subprocess
 import os
 import sys
 import time
 from typing import Dict, List, Union
 from pathlib import Path
 
+# Check if PyExifTool is installed
+try:
+    import exiftool
+except ImportError:
+    print("\033[0;31mPyExifTool extension is not installed.\033[0m")
+    print("Please install it using: \033[0;36mpip install PyExifTool\033[0m")
+    sys.exit(1)
+
+# Check if ExifTool command-line tool is available
+try:
+    subprocess.run(['exiftool', '-ver'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True)
+except (subprocess.SubprocessError, FileNotFoundError):
+    print("\033[0;31mExifTool command-line tool is not installed or not in PATH.\033[0m")
+    print("Please download and install it from: \033[0;36mhttps://exiftool.org/\033[0m")
+    sys.exit(1)
+
 # Configuration variables
 SCRIPT_NAME = "organize_media"
-SCRIPT_VERSION = "0.25"
-SCRIPT_DATE = "2025-10-11"
+SCRIPT_VERSION = "0.26"
+SCRIPT_DATE = "2025-10-12"
 SCRIPT_AUTHOR = "github.com/barabasz"
 
 EXTENSIONS = ['jpg', 'jpeg', 'dng', 'mov', 'mp4', 'orf', 'ori', 'raw']
+CHANGE_EXTENSIONS = {'jpeg': 'jpg', 'tiff': 'tif'}  # Map of extensions to change
+EXIF_DATE_TAGS = ['EXIF:DateTimeOriginal', 'EXIF:CreateDate', 'XMP:CreateDate']
 FALLBACK_FOLDER = "UNKNOWN_DATE"  # Folder for media files without EXIF date
 FILE_TEMPLATE = "YYYYMMDD-HHMMSS"  # Format for timestamp prefix
 FOLDER_TEMPLATE = "YYYYMMDD"  # Template for folder names
@@ -31,6 +50,8 @@ OFFSET = 0  # Time offset in seconds to apply to EXIF dates
 OVERWRITE = False  # Whether to overwrite existing files during move operation
 QUIET_MODE = False  # Whether to suppress non-error messages and prompts
 SHOW_VERSION = False  # Whether to show version and exit
+SHOW_FILES_DETAILS = False  # Whether to show detailed file information
+SHOW_RAW_SETTINGS = False  # Whether to show raw settings
 SOURCE_DIR = Path.cwd()  # Directory to organize (default: current working directory)
 SOURCE_DIR_WRITABLE = False  # Whether the source directory is writable
 TEST_MODE = False  # Test mode: show what would be done without making changes
@@ -44,10 +65,12 @@ YES_TO_ALL = False  # Whether to assume 'yes' to all prompts
 def parse_args() -> None:
     """Parse command line arguments and update configuration variables."""
 
-    global OFFSET, FOLDER_TEMPLATE, FILE_TEMPLATE, INTERFIX, TIME_DAY_STARTS, USE_PREFIX
-    global FALLBACK_FOLDER, OVERWRITE, USE_FALLBACK_FOLDER, VERBOSE_MODE, SHOW_VERSION
-    global USE_PREFIX, EXTENSIONS, SOURCE_DIR, SCRIPT_NAME, TEST_MODE, USE_SUBDIRS
-    global QUIET_MODE, INCLUDE_DOTFILES, YES_TO_ALL, NORMALIZE_FILENAME, SOURCE_DIR_WRITABLE
+    global OFFSET, FOLDER_TEMPLATE, FILE_TEMPLATE, INTERFIX, TIME_DAY_STARTS
+    global SHOW_FILES_DETAILS, USE_PREFIX, FALLBACK_FOLDER, OVERWRITE
+    global USE_FALLBACK_FOLDER, VERBOSE_MODE, USE_PREFIX, EXTENSIONS
+    global SOURCE_DIR, SCRIPT_NAME, TEST_MODE, USE_SUBDIRS, QUIET_MODE
+    global INCLUDE_DOTFILES, YES_TO_ALL, NORMALIZE_FILENAME, SOURCE_DIR_WRITABLE
+    global SHOW_RAW_SETTINGS, SHOW_VERSION
 
     parser = argparse.ArgumentParser(
         prog=SCRIPT_NAME,
@@ -58,10 +81,11 @@ def parse_args() -> None:
         epilog=f"Example: {_green}{SCRIPT_NAME}{_reset} -o 3600 --fallback-folder UNSORTED"
     )
     # Options with arguments
-    parser.add_argument("-o", "--offset", type=int, default=OFFSET, metavar="SECONDS",
-                        help="Time offset in seconds to apply to EXIF dates")
+
     parser.add_argument("-d", "--directory-template", type=str, default=FOLDER_TEMPLATE, metavar="TEMPLATE",
                         help=f"Template for directory names (default: '{_yellow}{FOLDER_TEMPLATE}{_reset}')")
+    parser.add_argument("-D", "--files-details", action="store_true", dest="show_files_details",
+                        help="Show detailed information about each file")
     parser.add_argument("-e", "--extensions", type=str, nargs="+", default=EXTENSIONS, metavar="EXT",
                         help=f"List of file extensions to process (default: '{_yellow}{', '.join(EXTENSIONS)}{_reset}')")
     parser.add_argument("-f", "--file-template", type=str, default=FILE_TEMPLATE, metavar="TEMPLATE",
@@ -70,14 +94,24 @@ def parse_args() -> None:
                         help=f"Text to insert between timestamp prefix and original filename (default: '{_yellow}-{_reset}')")
     parser.add_argument("-n", "--new-day", type=str, default=TIME_DAY_STARTS, metavar="HH:MM:SS",
                         help=f"Time when the new day starts (default: '{_yellow}HH:MM:SS{_reset}')")
+    parser.add_argument("-N", "--no-normalize", action="store_false", dest="normalize_filename",
+                        help="Do not normalize filenames to lowercase")
     parser.add_argument("-F", "--fallback-folder", type=str, default=FALLBACK_FOLDER, metavar="FOLDER",
                         help=f"Folder name for images without EXIF date (default: '{_yellow}UNKNOWN_DATE{_reset}')")
+    parser.add_argument("-o", "--offset", type=int, default=OFFSET, metavar="SECONDS",
+                        help="Time offset in seconds to apply to EXIF dates")
+    parser.add_argument("-O", "--overwrite", action="store_true",
+                        help="Overwrite existing files during move/rename operation")
+    parser.add_argument("-p", "--no-prefix", action="store_false", dest="add_timestamp_prefix",
+                        help="Do not add timestamp prefix to filenames")
     parser.add_argument("-q", "--quiet", action="store_true",
                         help="Quiet mode (suppress non-error messages)")
-    parser.add_argument("-r", "--replace", action="store_true",
-                        help="Replace (overwrite) existing files during move operation")
     parser.add_argument("-s", "--skip-fallback", action="store_true",
                         help="Do not move files without date to fallback folder")
+    parser.add_argument("-S", "--settings", action="store_true", dest="show_raw_settings",
+                        help="Show raw settings (variable values)")
+    parser.add_argument("-r","--rename", action="store_false", dest="use_subdirs",
+                        help="Rename in place (do not move files in subdirectories)")
     parser.add_argument("-t", "--test", action="store_true",
                         help="Test mode: show what would be done without making changes")
     parser.add_argument("-v", "--version", action="store_true",
@@ -86,13 +120,6 @@ def parse_args() -> None:
                         help="Print detailed information during processing")
     parser.add_argument("-y", "--yes", action="store_true",
                         help="Assume 'yes' to all prompts")
-    # Flags
-    parser.add_argument("--no-prefix", action="store_false", dest="add_timestamp_prefix",
-                        help="Do not add timestamp prefix to filenames")
-    parser.add_argument("--no-normalize", action="store_false", dest="normalize_filename",
-                        help="Do not normalize filenames to lowercase")
-    parser.add_argument("--no-subdirs", action="store_false", dest="include_subdirs",
-                        help="Do not move files in subdirectories (rename in place)")
     # Positional arguments
     parser.add_argument("directory", type=str, default=SOURCE_DIR, nargs="?",
                     help="Directory to organize (default: current working directory)")
@@ -107,16 +134,18 @@ def parse_args() -> None:
     INTERFIX = args.interfix
     NORMALIZE_FILENAME = args.normalize_filename
     OFFSET = args.offset
-    OVERWRITE = args.replace
+    OVERWRITE = args.overwrite
     QUIET_MODE = args.quiet
     SHOW_VERSION = args.version
+    SHOW_FILES_DETAILS = args.show_files_details
+    SHOW_RAW_SETTINGS = args.show_raw_settings
     SOURCE_DIR = Path(args.directory).resolve()
     SOURCE_DIR_WRITABLE = os.access(SOURCE_DIR, os.W_OK)
     TEST_MODE = args.test
     TIME_DAY_STARTS = args.new_day
     USE_FALLBACK_FOLDER = not args.skip_fallback
     USE_PREFIX = args.add_timestamp_prefix
-    USE_SUBDIRS = args.include_subdirs
+    USE_SUBDIRS = args.use_subdirs
     VERBOSE_MODE = args.verbose
     YES_TO_ALL = args.yes
 
@@ -141,11 +170,11 @@ def check_conditions() -> None:
         dir: str = f"{_cyan}{SOURCE_DIR}{_reset}"
         msg = f"The specified directory '{dir}' is not writable."
         code = 1
-    if OFFSET < -86400 or OFFSET > 86400:
-        msg = f"Offset must be between -86400 and 86400 seconds."
-        code = 1
-    if not EXTENSIONS:
+    if not EXTENSIONS or all(ext.strip() == "" for ext in EXTENSIONS):
         msg = f"At least one file extension must be specified."
+        code = 1
+    if QUIET_MODE and VERBOSE_MODE:
+        msg = "Cannot use both quiet mode and verbose mode."
         code = 1
 
     if msg:
@@ -167,13 +196,14 @@ def get_schema() -> str:
     file_org: str = "FileName.Ext"
     arrow: str = f"{_yellow}→{_reset}"
     folder: str = f"{_cyan}{FOLDER_TEMPLATE}{_reset}"
+    folder = f"{folder}/" if USE_SUBDIRS else ""
     prefix: str = f"{_cyan}{FILE_TEMPLATE}{_reset}"
     separator: str = f"{_cyan}{INTERFIX}{_reset}"
     file_new: str = file_org.lower() if NORMALIZE_FILENAME else file_org
     if USE_PREFIX:
         separator = f"-{INTERFIX}-" if INTERFIX != "" else "-"
         file_new = f"{prefix}{separator}{file_new}"
-    return f"{file_org} {arrow} {folder}/{file_new}"
+    return f"{file_org} {arrow} {folder}{file_new}"
 
 def print_schema() -> None:
     """Print the current schema."""
@@ -183,6 +213,8 @@ def print_schema() -> None:
 def print_settings() -> None:
     """Print current settings."""
     print(f"{_yellow}RAW Settings:{_reset}")
+    print(f"{INDENT}CHANGE_EXTENSIONS: {_cyan}{CHANGE_EXTENSIONS}{_reset}")
+    print(f"{INDENT}EXIF_DATE_TAGS: {_cyan}{EXIF_DATE_TAGS}{_reset}")
     print(f"{INDENT}EXTENSIONS: {_cyan}{EXTENSIONS}{_reset}")
     print(f"{INDENT}FALLBACK_FOLDER: {_cyan}{FALLBACK_FOLDER}{_reset}")
     print(f"{INDENT}FILE_TEMPLATE: {_cyan}{FILE_TEMPLATE}{_reset}")
@@ -193,6 +225,8 @@ def print_settings() -> None:
     print(f"{INDENT}OVERWRITE: {_cyan}{OVERWRITE}{_reset}")
     print(f"{INDENT}QUIET_MODE: {_cyan}{QUIET_MODE}{_reset}")
     print(f"{INDENT}SHOW_VERSION: {_cyan}{SHOW_VERSION}{_reset}")
+    print(f"{INDENT}SHOW_FILES_DETAILS: {_cyan}{SHOW_FILES_DETAILS}{_reset}")
+    print(f"{INDENT}SHOW_RAW_SETTINGS: {_cyan}{SHOW_RAW_SETTINGS}{_reset}")
     print(f"{INDENT}SOURCE_DIR: {_cyan}{SOURCE_DIR}{_reset}")
     print(f"{INDENT}SOURCE_DIR_WRITABLE: {_cyan}{SOURCE_DIR_WRITABLE}{_reset}")
     print(f"{INDENT}TEST_MODE: {_cyan}{TEST_MODE}{_reset}")
@@ -207,33 +241,43 @@ def print_header() -> None:
     """Print script header with version information."""
     global start_time
     start_time = time.time()
+    on = f"{_green}ON{_reset}"
+    off = f"{_red}OFF{_reset}"
     print(f"{_green}Media Organizer Script{_reset} ({_green}{SCRIPT_NAME}{_reset}) v{SCRIPT_VERSION}{_reset}")
-    if VERBOSE_MODE and not QUIET_MODE:
+    if SHOW_RAW_SETTINGS and not QUIET_MODE:
         print_settings()
-    if QUIET_MODE and not VERBOSE_MODE:
+    print_schema()
+    if QUIET_MODE:
         return
     print(f"{_yellow}Settings:{_reset}")
     if VERBOSE_MODE:
-        print(f"{INDENT}Verbose mode: {_cyan}ON{_reset}")
+        print(f"{INDENT}Verbose mode: {on if VERBOSE_MODE else off}")
     if TEST_MODE or VERBOSE_MODE:
-        print(f"{INDENT}Test mode: {_cyan}{'ON' if TEST_MODE else 'OFF'}{_reset}")
-    print(f"{INDENT}Include extensions: {_cyan}{', '.join(EXTENSIONS)}{_reset}")
-    print(f"{INDENT}Subfolder template: {_cyan}{FOLDER_TEMPLATE}{_reset}")
-    if VERBOSE_MODE:
-        print(f"{INDENT}Add timestamp prefix: {_cyan}{USE_PREFIX}{_reset}")
-    if USE_PREFIX:
-        print(f"{INDENT}Filename format: {_cyan}{FILE_TEMPLATE}{_reset}")
-    print(f"{INDENT}Day starts time set to: {_cyan}{TIME_DAY_STARTS}{_reset}")
+        print(f"{INDENT}Test mode: {on if TEST_MODE else off}")
+    if EXTENSIONS:
+        print(f"{INDENT}Include extensions: {_cyan}{', '.join(EXTENSIONS)}{_reset}")
+    if VERBOSE_MODE or not USE_SUBDIRS:
+        print(f"{INDENT}Process to subdirectories: {on if USE_SUBDIRS else off}")
+    if USE_SUBDIRS:
+        print(f"{INDENT}Subfolder template: {_cyan}{FOLDER_TEMPLATE}{_reset}")
+    if VERBOSE_MODE or TIME_DAY_STARTS != "00:00:00":
+        print(f"{INDENT}Day starts time set to: {_cyan}{TIME_DAY_STARTS}{_reset}")
+    if VERBOSE_MODE or OVERWRITE:
+        print(f"{INDENT}Overwrite existing files: {on if OVERWRITE else off}")
+    if VERBOSE_MODE or not NORMALIZE_FILENAME:
+        print(f"{INDENT}Normalize filenames to lowercase: {on if NORMALIZE_FILENAME else off}")
+    if VERBOSE_MODE or not USE_PREFIX:
+        print(f"{INDENT}Add prefix to filenames: {on if USE_PREFIX else off}")
+    if VERBOSE_MODE or USE_PREFIX:
+        print(f"{INDENT}Prefix format: {_cyan}{FILE_TEMPLATE}{_reset}")
+    if VERBOSE_MODE or not USE_FALLBACK_FOLDER:
+        print(f"{INDENT}Use fallback folder: {on if USE_FALLBACK_FOLDER else off}")
     if USE_FALLBACK_FOLDER:
         print(f"{INDENT}Fallback folder name: {_cyan}{FALLBACK_FOLDER}{_reset}")
-    if OVERWRITE:
-        print(f"{INDENT}Overwrite existing files: {_cyan}{OVERWRITE}{_reset}")
-    if OFFSET != 0:
+    if VERBOSE_MODE or OFFSET != 0:
         print(f"{INDENT}Time offset: {_cyan}{OFFSET} seconds{_reset}")
     if INTERFIX or VERBOSE_MODE:
         print(f"{INDENT}Interfix: {_cyan}{INTERFIX}{_reset}")
-    if NORMALIZE_FILENAME or VERBOSE_MODE:
-        print(f"{INDENT}Normalize filenames to lowercase: {_cyan}{'ON' if NORMALIZE_FILENAME else 'OFF'}{_reset}")
 
 
 def get_elapsed_time() -> float:
@@ -251,18 +295,36 @@ def print_footer(folder_info: Dict) -> None:
     #print(f"Total directories created: {dirs_count}")
     print(f"{_green}{SCRIPT_NAME}{_reset} completed in {_cyan}{time_elapsed}{_reset} {time_factor}.{_reset}")
 
-def prompt_user(folder_info: Dict[str, int]) -> None:
+def prompt_user(folder_info: Dict[str, int]) -> bool:
     """Ask user for confirmation to continue."""
     if YES_TO_ALL or TEST_MODE:
-        return
-    prompt = f"{_yellow}Do you want to continue with {folder_info['media_count']} files? (Y/n): {_reset}"
+        return True
+    prompt = f"{_yellow}Do you want to continue with {folder_info['valid_files']} files? (yes/No): {_reset}"
     answer = input(prompt).strip().lower()
-    if answer in ('n', 'no'):
-        printe("Operation cancelled by user.", 0)
+    if answer not in ('y', 'yes'):
+        print("Operation cancelled by user.")
+        return False
+    return True
 
-def get_media_objects(file_list: list[Path]) -> list[FileItem]:
+def get_media_objects(file_list: list[Path], folder_info: Dict) -> list[FileItem]:
     """Convert list of Paths to list of FileItem objects."""
-    return [FileItem(file) for file in file_list if file.suffix.lstrip('.').lower() in EXTENSIONS]
+    media_count = folder_info.get('media_count', 0)
+    media_objects = []
+    item: int = 1
+    print(f"{_yellow}Analyzing files:{_reset}")
+    for file in file_list:
+        if file.suffix.lstrip('.').lower() in EXTENSIONS:
+            media_item = FileItem(file)
+            percentage = (item / media_count) * 100
+            if SHOW_FILES_DETAILS and not QUIET_MODE:
+                print_file_info(media_item)
+            else:
+                msg = f"\r\033[K\r{INDENT}File {item} of {media_count}: {_cyan}{file}{_reset} ({percentage:.0f}%)"
+                print(msg, end="", flush=True)
+            media_objects.append(media_item)
+            item += 1
+    print(f"\r\033[K\r{INDENT}Completed.")
+    return media_objects
 
 def get_file_list(directory: Path) -> list[Path]:
     """Get a sorted list of file Paths in the specified directory."""
@@ -289,28 +351,51 @@ def print_folder_info(folder_info: Dict) -> None:
     """Print information about the folder and media files."""
     print(f"{_yellow}Folder:{_reset}")
     print(f"{INDENT}Path: {_cyan}{SOURCE_DIR}{_reset}")
-    print(f"{INDENT}Created: {_cyan}{folder_info['created']}{_reset}")
-    print(f"{INDENT}Modified: {_cyan}{folder_info['modified']}{_reset}")
-    print(f"{INDENT}Total files: {_cyan}{folder_info['file_count']}{_reset}")
-    print(f"{INDENT}Media files: {_cyan}{folder_info['media_count']}{_reset}", end="")
-    print(f" ({', '.join(f'{_cyan}{count}{_reset} x {_cyan}{ext.upper()}{_reset}' for ext, count in folder_info['media_types'].items())})")
+    if VERBOSE_MODE:
+        print(f"{INDENT}Total files: {_cyan}{folder_info['file_count']}{_reset}")
+        print(f"{INDENT}Matching files: {_cyan}{folder_info['media_count']}{_reset}", end="")
+        print(f" ({', '.join(f'{_cyan}{count}{_reset} x {_cyan}{ext.upper()}{_reset}' for ext, count in folder_info['media_types'].items())})")
+        print(f"{INDENT}Created: {_cyan}{folder_info['created']}{_reset}")
+        print(f"{INDENT}Modified: {_cyan}{folder_info['modified']}{_reset}")
+
+def print_files_info(files: List[FileItem], folder_info: Dict) -> None:
+    """Print summary information about the list of FileItem objects."""
+    total_files = len(files)
+    valid_files = sum(1 for f in files if f.is_valid)
+    invalid_files = total_files - valid_files
+    folder_info['valid_files'] = valid_files
+    folder_info['invalid_files'] = invalid_files
+    if not QUIET_MODE:
+        print(f"{_yellow}Files Summary:{_reset}")
+        print(f"{INDENT}Total files analyzed: {_cyan}{total_files}{_reset}")
+        print(f"{INDENT}Valid files: {_cyan}{valid_files}{_reset}")
+        print(f"{INDENT}Invalid files: {_cyan}{invalid_files}{_reset}")
+        if invalid_files > 0:
+            for file in files:
+                if not file.is_valid:
+                    print(f"{INDENT*2}- {_cyan}{file.name_old}{_reset}: {_red}{file.error}{_reset}")
+
+def print_file_info(file: FileItem) -> None:
+    """Print detailed information about a FileItem."""
+    print(f"{_yellow}File:{_reset} {_yellow}{file.name_old}{_reset}")
+    for prop, value in file.__dict__.items():
+        if prop == 'error' and value:
+            print(f"{INDENT}{prop}: {_red}{value}{_reset}")
+        elif prop == 'is_valid' and not value:
+            print(f"{INDENT}{prop}: {_red}{value}{_reset}")
+        else:
+            print(f"{INDENT}{prop}: {_cyan}{value}{_reset}")
 
 def process_files(media_list: List[FileItem], folder_info: Dict) -> None:
     """Process and organize media files."""
     processed_files: Dict[str, int] = {}
     skipped_files: Dict[str, int] = {}
     created_dirs: Dict[str, int] = {}
-
     for file in media_list:
+        if VERBOSE_MODE and not QUIET_MODE:
+            print_file_info(file)
         if file.size > 0 and file.readable and file.writable:
-            print(f"Processing file: {_yellow}{file.name_old}{_reset}")
-            print(f"{INDENT}path_old: {file.path_old}")
-            print(f"{INDENT}subdir: {file.subdir}")
-            print(f"{INDENT}stem: {file.stem}")
-            print(f"{INDENT}ext: {file.ext}")
-            print(f"{INDENT}name_new: {file.name_new}")
-            print(f"{INDENT}path_new: {file.path_new}")
-            print(f"{INDENT}size: {file.size} bytes")
+            # Here you would add the logic to move/rename the file as needed
             processed_files[file.ext] = processed_files.get(file.ext, 0) + 1
         else:
             skipped_files[file.ext] = skipped_files.get(file.ext, 0) + 1
@@ -321,7 +406,7 @@ def process_files(media_list: List[FileItem], folder_info: Dict) -> None:
     return None
 
 class FileItem:
-    """Class representing a file with its path and name."""
+    """Class representing a media file with its properties."""
     # Attributes
     subdir: Path
     path_old: Path
@@ -330,44 +415,134 @@ class FileItem:
     stem: str
     ext_old: str
     ext: str
+    error: str = ""
     name_old: str
     name: str
     size: int
     readable: bool
     writable: bool
     prefix: str
+    exif_date: datetime | None
+    date_time: datetime
+    exif_type: str | None
+    is_valid: bool
+    type: str
 
     def get_subdir(self) -> Path:
         return Path("YYYYMMDD")
     
     def get_prefix(self) -> str:
-        return "PREFIX"
+        """Format a timestamp prefix according to the provided template"""
+        if FILE_TEMPLATE == "YYYYMMDD-HHMMSS":
+            return self.exif_date.strftime("%Y%m%d-%H%M%S")
+        # Add more format options if needed
+        return self.exif_date.strftime("%Y%m%d-%H%M%S")  # Default format
+
+    def get_exif_date(self) -> Union[datetime, None]:
+        """Extract creation date from EXIF data"""
+        try:
+            with exiftool.ExifToolHelper() as et:
+                metadata = et.get_metadata(self.path_old)
+                # Try different EXIF tags for date information
+                for tag in EXIF_DATE_TAGS:
+                    if tag in metadata[0]:
+                        date_str = metadata[0][tag]
+                        # Handle different date formats
+                        if isinstance(date_str, str):
+                            if ":" in date_str[:10] and date_str[4:5] == ":":  # Format: 2024:05:09 18:01:05
+                                date_str = date_str.replace(":", "-", 2)
+                            return datetime.strptime(date_str[:19], "%Y-%m-%d %H:%M:%S")
+        except (KeyError, ValueError, IndexError) as e:
+            self.error = f"Error extracting EXIF data: {str(e)}"
+        except Exception as e:
+            self.error = f"Unexpected error: {str(e)}"
+        return None
+
+    def get_exif_type(self) -> Union[str, None]:
+        """Extract media type from EXIF data"""
+        try:
+            with exiftool.ExifToolHelper() as et:
+                metadata = et.get_metadata(self.path_old)
+                #print(metadata[0])
+                if "File:MIMEType" in metadata[0]:
+                    return metadata[0]["File:MIMEType"]
+        except (KeyError, ValueError, IndexError) as e:
+            self.error = f"Error extracting EXIF type: {str(e)}"
+        except Exception as e:
+            self.error = f"Unexpected error: {str(e)}"
+        return None
 
     def get_new_name(self) -> str:
         name: str = ""
         if self.prefix:
             name += self.prefix + "-"
-        if INTERFIX:
-            name += "-" + INTERFIX + "-"
+        if INTERFIX != "":
+            name += INTERFIX + "-"
         return f"{name}{self.stem}.{self.ext}"
+    
+    def get_new_path(self) -> Path:
+        if USE_SUBDIRS:
+            return Path(SOURCE_DIR / self.subdir / self.name_new).absolute()
+        else:
+            return Path(SOURCE_DIR / self.name_new).absolute()
+    
+    def get_new_extension(self) -> str:
+        """Get new file extension based on CHANGE_EXTENSIONS mapping."""
+        ext = self.ext_old.lower() if NORMALIZE_FILENAME else self.ext_old
+        ext = CHANGE_EXTENSIONS.get(ext, ext)
+        return ext
 
     def __init__(self, path: Path):
         """Initialize FileItem with path and extract attributes."""
+        self.is_valid = True # Assume valid until checks are done
         self.path_old = path.absolute()
         self.name_old = path.name
         self.stem_old = path.stem
-        self.ext_old = path.suffix
+        self.stem = path.stem.lower() if NORMALIZE_FILENAME else path.stem
+        self.ext_old = path.suffix.lstrip(".")
+        self.ext = self.get_new_extension()
 
         self.size = path.stat().st_size
-        self.readable = os.access(path, os.R_OK)
-        self.writable = os.access(path, os.W_OK)
+        if self.size == 0:
+            self.error = "File is empty."
+            self.is_valid = False
+            return
 
-        self.subdir = self.get_subdir()
-        self.prefix = self.get_prefix()
-        self.stem = path.stem.lower() if NORMALIZE_FILENAME else path.stem
-        self.ext = self.ext_old.lstrip(".").lower() if NORMALIZE_FILENAME else self.ext_old.lstrip(".")
+        self.readable = os.access(path, os.R_OK)
+        if not self.readable:
+            self.error = "File is not readable."
+            self.is_valid = False
+            return
+
+        self.writable = os.access(path, os.W_OK)
+        if not self.writable:
+            self.error = "File is not writable."
+            self.is_valid = False
+            return
+        
+        self.exif_date = self.get_exif_date()
+        if self.exif_date is None:
+            self.error = "No EXIF date found."
+            if not USE_FALLBACK_FOLDER:
+                self.is_valid = False
+                return
+
+        if OFFSET != 0 and self.exif_date is not None:
+            self.date_time += timedelta(seconds=OFFSET)
+
+        if self.exif_date and USE_PREFIX:
+            self.prefix = self.get_prefix()
+        else:
+            self.prefix = ""
+
+        self.exif_type = self.get_exif_type()
+        self.type = self.exif_type.split("/")[0] if self.exif_type else "unknown"
+        
+        if USE_SUBDIRS:
+            self.subdir = self.get_subdir()
+        
         self.name_new = self.get_new_name()
-        self.path_new = Path(SOURCE_DIR / self.subdir / self.name_new).absolute()
+        self.path_new = self.get_new_path()
 
 def main() -> None:
     """Main function to organize media files."""
@@ -378,9 +553,10 @@ def main() -> None:
     file_list = get_file_list(Path(SOURCE_DIR))
     folder_info = get_folder_info(file_list)
     print_folder_info(folder_info)
-    print_schema()
-    prompt_user(folder_info)
-    files = get_media_objects(file_list)
+    files = get_media_objects(file_list, folder_info)
+    print_files_info(files, folder_info)
+    if not prompt_user(folder_info):
+        sys.exit(0)
     process_files(files, folder_info)
     print_footer(folder_info)
 
