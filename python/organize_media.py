@@ -33,7 +33,7 @@ except (subprocess.SubprocessError, FileNotFoundError):
 
 # Configuration variables
 SCRIPT_NAME = "organize_media"
-SCRIPT_VERSION = "0.3.2"
+SCRIPT_VERSION = "0.3.3"
 SCRIPT_DATE = "2025-10-12"
 SCRIPT_AUTHOR = "github.com/barabasz"
 
@@ -448,14 +448,14 @@ def process_files(media_list: List[FileItem], folder_info: Dict) -> None:
             if VERBOSE_MODE:
                 old = f"{_cyan}{file.name_old:<13}{_reset}"
                 arr = f"{_yellow}→{_reset}"
-                new = f"{_cyan}{target_path}{_reset}"
+                sub = f"{_cyan}{file.subdir}{_reset}/" if USE_SUBDIRS else ""
+                new = f"{_cyan}{file.name_new}{_reset}"
                 exf = f"{file.exif_date if file.exif_date else 'EXIF data not found'}"
-                print(f"{INDENT}{old} ({_cyan if file.exif_date else _red}{exf}{_reset}) {arr} {new}")
+                print(f"{INDENT}{old} ({_cyan if file.exif_date else _red}{exf}{_reset}) {arr} {sub}{new}")
             else:
                 percentage = (item / total_items) * 100
                 msg = f"\r\033[K\r{INDENT}File {item} of {total_items}: {_cyan}{file.name_old}{_reset} ({percentage:.0f}%)"
                 print(msg, end="", flush=True)
-                time.sleep(0.2)  # Small delay to ensure the print updates correctly
             item += 1
 
             if not TEST_MODE:
@@ -483,6 +483,7 @@ class FileItem:
     ext_new: str
     ext_old: str
     is_valid: bool
+    metadata: dict = None
     name_new: str
     name_old: str
     path_new: Path
@@ -524,38 +525,45 @@ class FileItem:
         # Add more format options if needed
         return self.exif_date.strftime("%Y%m%d-%H%M%S")  # Default format
 
-    def get_exif_date(self) -> datetime.datetime | None:
-        """Extract creation date from EXIF data"""
+    def read_exif_metadata(self) -> bool:
+        """Read all EXIF metadata at once and store it"""
         try:
             with exiftool.ExifToolHelper() as et:
-                metadata = et.get_metadata(self.path_old)
-                # Try different EXIF tags for date information
-                for tag in EXIF_DATE_TAGS:
-                    if tag in metadata[0]:
-                        date_str = metadata[0][tag]
-                        # Handle different date formats
-                        if isinstance(date_str, str):
-                            if ":" in date_str[:10] and date_str[4:5] == ":":  # Format: 2024:05:09 18:01:05
-                                date_str = date_str.replace(":", "-", 2)
-                            return datetime.datetime.strptime(date_str[:19], "%Y-%m-%d %H:%M:%S")
-        except (KeyError, ValueError, IndexError) as e:
-            self.error = f"Error extracting EXIF data: {str(e)}"
+                self.metadata = et.get_metadata(self.path_old)[0]
+                return True
         except Exception as e:
-            self.error = f"Unexpected error: {str(e)}"
+            self.error = f"Error reading EXIF metadata: {str(e)}"
+            return False
+    
+    def get_exif_date(self) -> datetime.datetime | None:
+        """Extract creation date from stored EXIF data"""
+        if not self.metadata:
+            return None
+        
+        try:
+            # Try different EXIF tags for date information
+            for tag in EXIF_DATE_TAGS:
+                if tag in self.metadata:
+                    date_str = self.metadata[tag]
+                    # Handle different date formats
+                    if isinstance(date_str, str):
+                        if ":" in date_str[:10] and date_str[4:5] == ":":
+                            date_str = date_str.replace(":", "-", 2)
+                        return datetime.datetime.strptime(date_str[:19], "%Y-%m-%d %H:%M:%S")
+        except (KeyError, ValueError, IndexError) as e:
+            self.error = f"Error extracting EXIF date: {str(e)}"
         return None
 
     def get_exif_type(self) -> str | None:
-        """Extract media type from EXIF data"""
+        """Extract media type from stored EXIF data"""
+        if not self.metadata:
+            return None
+            
         try:
-            with exiftool.ExifToolHelper() as et:
-                metadata = et.get_metadata(self.path_old)
-                #print(metadata[0])
-                if "File:MIMEType" in metadata[0]:
-                    return metadata[0]["File:MIMEType"]
-        except (KeyError, ValueError, IndexError) as e:
-            self.error = f"Error extracting EXIF type: {str(e)}"
+            if "File:MIMEType" in self.metadata:
+                return self.metadata["File:MIMEType"]
         except Exception as e:
-            self.error = f"Unexpected error: {str(e)}"
+            self.error = f"Error extracting EXIF type: {str(e)}"
         return None
 
     def get_new_name(self) -> str:
@@ -606,7 +614,12 @@ class FileItem:
             self.error = "File is not writable."
             self.is_valid = False
             return
-        
+
+        # Read EXIF metadata
+        if not self.read_exif_metadata():
+            self.is_valid = False
+            return
+
         self.exif_date = self.get_exif_date()
         if self.exif_date is None:
             self.error = "No EXIF date found."
