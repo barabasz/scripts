@@ -96,11 +96,11 @@ def parse_args() -> None:
     parser.add_argument("-i", "--interfix", type=str, default=INTERFIX, metavar="TEXT",
                         help=f"Text to insert between timestamp prefix and original filename (default: '{_yellow}-{_reset}')")
     parser.add_argument("-n", "--new-day", type=str, default=TIME_DAY_STARTS, metavar="HH:MM:SS",
-                        help=f"Time when the new day starts (default: '{_yellow}04:00:00{_reset}')")
+                        help=f"Time when the new day starts (default: '{_yellow}{TIME_DAY_STARTS}{_reset}')")
     parser.add_argument("-N", "--no-normalize", action="store_false", dest="normalize_ext",
                         help="Do not normalize extensions to 3-letter lowercase")
     parser.add_argument("-F", "--fallback-folder", type=str, default=FALLBACK_FOLDER, metavar="FOLDER",
-                        help=f"Folder name for images without EXIF date (default: '{_yellow}UNKNOWN_DATE{_reset}')")
+                        help=f"Folder name for images without EXIF date (default: '{_yellow}{FALLBACK_FOLDER}{_reset}')")
     parser.add_argument("-o", "--offset", type=int, default=OFFSET, metavar="SECONDS",
                         help="Time offset in seconds to apply to EXIF dates")
     parser.add_argument("-O", "--overwrite", action="store_true",
@@ -336,7 +336,7 @@ def get_media_objects(file_list: list[Path], folder_info: Dict) -> list[FileItem
             if SHOW_FILES_DETAILS and not QUIET_MODE:
                 print_file_info(media_item)
             else:
-                msg = f"\r\033[K\r{INDENT}File {item} of {media_count}: {_cyan}{file}{_reset} ({percentage:.0f}%)"
+                msg = f"\r\033[K\r{INDENT}File {item} of {media_count}: {_cyan}{media_item.name_old}{_reset} ({percentage:.0f}%)"
                 print(msg, end="", flush=True)
             media_objects.append(media_item)
             item += 1
