@@ -7,8 +7,6 @@ Provides the Config class for type-safe configuration with dynamic properties.
 from .config import Config, PropertyDescriptor
 
 __all__ = ['Config', 'PropertyDescriptor']
-__package__ = 'config'
-__description__ = 'Configuration management package with type-safe properties.'
 __version__ = '1.0.5'
 __date__ = '2025-11-16'
 __author__ = 'barabasz'
