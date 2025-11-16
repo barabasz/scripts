@@ -3,10 +3,31 @@
 ## 📖 Overview
 
 `Config` is a Python class for managing configuration with:
-- ✅ Dynamic property management
-- ✅ Strong type validation (supports `Optional`, `Union`, generics)
-- ✅ Dict-like interface
-- ✅ Runtime property addition/removal
+- ✅ **Type validation at runtime** - catch errors immediately, not hours later
+- ✅ **Self-documenting** - types and defaults visible in code
+- ✅ **Typo protection** - `cfg.debgu = False` raises error instead of silent failure
+- ✅ **Optional & Union types** - `Optional[str]`, `Union[int, str]` built-in
+- ✅ **Dict-like interface** - both `cfg.key` and `cfg['key']` syntax
+- ✅ **IDE autocomplete** - full IntelliSense support
+- ✅ **Runtime introspection** - query types and metadata programmatically
+
+### Why Config over dict?
+
+```python
+# ❌ Plain dict - silent failures, runtime crashes
+config = {'port': 8080}
+config['port'] = "invalid"  # ✓ No error now...
+config['debgu'] = False     # ✓ Typo ignored...
+server.listen(config['port'])  # 💥 Crashes after 1 hour!
+
+# ✅ Config - fail fast, catch errors immediately
+cfg = Config(port=(int, 8080))
+cfg.port = "invalid"  # ✗ TypeError immediately!
+cfg.debgu = False     # ✗ AttributeError immediately!
+cfg.list()            # Shows all settings with types
+```
+
+**TL;DR:** `Config` = `dict` + type safety + self-documentation + fail fast = fewer bugs! 🚀
 
 ---
 
@@ -23,13 +44,13 @@ app = Config(
     host=(str, "localhost")
 )
 
-# Access values
-print(app.debug)        # True
-print(app.port)         # 8080
+# Access values (two ways)
+print(app.debug)        # True (attribute access)
+print(app['port'])      # 8080 (dict-style access)
 
-# Modify values
-app.debug = False
-app.port = 3000
+# Modify values (two ways)
+app.debug = False       # Attribute style
+app['port'] = 3000      # Dict style
 
 # Display all properties
 app.list()
@@ -106,29 +127,50 @@ cfg.add('env', dict[str, int], {'timeout': 30})
 ## 📖 Reading Values
 
 ```python
-# Direct access
+# Method 1: Attribute access (recommended for static keys)
+value = cfg.debug                       # True
 value = cfg.host                        # 'localhost'
 
-# Safe access with default
+# Method 2: Dict-style access (useful for dynamic keys)
+value = cfg['debug']                    # True
+value = cfg['host']                     # 'localhost'
+
+# Method 3: Safe access with default
 value = cfg.get('host')                 # 'localhost'
 value = cfg.get('missing', 'default')   # 'default'
 
 # Check existence
 if 'host' in cfg:
     print(cfg.host)
+
+# Dynamic key access
+setting = 'debug'
+if setting in cfg:
+    print(f"{setting} = {cfg[setting]}")
 ```
 
 ---
 
 ## ✏️ Modifying Values
 
-### Single Property
+### Single Property (Two Styles)
+
 ```python
+# Attribute style (recommended for static keys)
 cfg.port = 3000
 cfg.debug = True
+
+# Dict style (useful for dynamic keys)
+cfg['port'] = 3000
+cfg['debug'] = True
+
+# Dynamic key modification
+key = 'port'
+cfg[key] = 8080
 ```
 
 ### Multiple Properties (Bulk Update)
+
 ```python
 cfg.update(
     port=3000,
@@ -138,15 +180,25 @@ cfg.update(
 ```
 
 ### Optional Values
+
 ```python
 cfg.api_key = "secret123"
 cfg.api_key = None  # Allowed for Optional[str]
+
+# Or dict-style:
+cfg['api_key'] = "secret123"
+cfg['api_key'] = None
 ```
 
 ### Union Values
+
 ```python
 cfg.port = 8080        # int
 cfg.port = "auto"      # str - both OK for Union[int, str]
+
+# Or dict-style:
+cfg['port'] = 8080
+cfg['port'] = "auto"
 ```
 
 ---
@@ -154,11 +206,15 @@ cfg.port = "auto"      # str - both OK for Union[int, str]
 ## ❌ Removing Properties
 
 ```python
+# Method 1: Using .remove()
 cfg.remove('port')
 
-# Check first
+# Method 2: Dict-style deletion
+del cfg['port']
+
+# Safe removal
 if 'port' in cfg:
-    cfg.remove('port')
+    del cfg['port']
 ```
 
 ---
@@ -166,6 +222,7 @@ if 'port' in cfg:
 ## 🔍 Introspection
 
 ### Display All Properties
+
 ```python
 cfg.list()
 # Configuration properties:
@@ -177,6 +234,7 @@ cfg.list()
 ```
 
 ### Property Metadata
+
 ```python
 info = cfg.get_property_info('port')
 print(info.name)           # 'port'
@@ -185,6 +243,7 @@ print(info.default_value)  # 8080
 ```
 
 ### All Properties
+
 ```python
 props = cfg.list_properties()  # dict[str, PropertyDescriptor]
 names = list(props.keys())     # ['debug', 'host', 'port']
@@ -198,8 +257,16 @@ names = list(props.keys())     # ['debug', 'host', 'port']
 # Length
 print(len(cfg))  # 3
 
-# Iteration
-for key, value in cfg:
+# Iteration over keys (like dict)
+for key in cfg:
+    print(key)  # 'debug', 'host', 'port'
+
+# Iteration over keys with values
+for key in cfg:
+    print(f"{key} = {cfg[key]}")
+
+# Iteration over (key, value) pairs
+for key, value in cfg.items():
     print(f"{key}: {value}")
 
 # Keys, values, items
@@ -207,9 +274,12 @@ print(list(cfg.keys()))     # ['debug', 'host', 'port']
 print(list(cfg.values()))   # [True, 'localhost', 8080]
 print(list(cfg.items()))    # [('debug', True), ...]
 
-# Membership
+# Membership test
 if 'debug' in cfg:
     print("Debug setting exists")
+
+# Convert to dict
+settings_dict = dict(cfg)   # {'debug': True, 'host': 'localhost', ...}
 ```
 
 ---
@@ -237,6 +307,7 @@ Config automatically validates types:
 cfg = Config(port=(int, 8080))
 
 cfg.port = 3000      # ✅ OK
+cfg['port'] = 9000   # ✅ OK (dict-style also works)
 cfg.port = "8080"    # ❌ TypeError: Value doesn't match type
 
 cfg = Config(api=(Optional[str], None))
@@ -246,7 +317,7 @@ cfg.api = None       # ✅ OK (Optional allows None)
 cfg = Config(port=(Union[int, str], 8080))
 cfg.port = 9000      # ✅ OK
 cfg.port = "auto"    # ✅ OK
-cfg.port = 3.14      # ❌ TypeError: float not in Union[int, str]
+cfg['port'] = 3.14   # ❌ TypeError: float not in Union[int, str]
 ```
 
 ---
@@ -291,12 +362,12 @@ app_config.update(
     database_url="postgresql://user:pass@db.prod.com/app"
 )
 
-# Use in application
+# Use in application (both styles work)
 if app_config.debug:
     print(f"Running on {app_config.host}:{app_config.port}")
 
-if app_config.database_url:
-    # connect_to_database(app_config.database_url)
+if app_config['database_url']:
+    # connect_to_database(app_config['database_url'])
     pass
 ```
 
@@ -305,6 +376,7 @@ if app_config.database_url:
 ## 🎯 Common Patterns
 
 ### Configuration from Environment
+
 ```python
 import os
 
@@ -316,6 +388,7 @@ cfg = Config(
 ```
 
 ### Validation Before Use
+
 ```python
 if 'database_url' in cfg and cfg.database_url:
     # Database is configured
@@ -325,6 +398,7 @@ else:
 ```
 
 ### Dynamic Configuration
+
 ```python
 # Start with base config
 cfg = Config(debug=(bool, False))
@@ -335,6 +409,22 @@ if production_mode:
     cfg.add('log_level', str, 'WARNING')
 else:
     cfg.add('log_level', str, 'DEBUG')
+```
+
+### Dynamic Key Access
+
+```python
+# Process multiple settings dynamically
+settings_to_check = ['debug', 'verbose', 'trace']
+for setting in settings_to_check:
+    if setting in cfg and cfg[setting]:
+        print(f"{setting} is enabled")
+
+# Load from dict
+user_settings = {'theme': 'dark', 'lang': 'en'}
+cfg = Config()
+for key, value in user_settings.items():
+    cfg.add(key, type(value), value)
 ```
 
 ---
@@ -356,10 +446,15 @@ else:
 - `.get_property_info(name)` - Get PropertyDescriptor
 - `.list_properties()` - Get all PropertyDescriptors
 
-### Special Methods
+### Special Methods (Dict-like Interface)
+- `cfg['name']` - Get property value (raises `KeyError` if not exists)
+- `cfg['name'] = value` - Set property value
+- `del cfg['name']` - Remove property
+- `cfg.name` - Get property value (attribute access)
+- `cfg.name = value` - Set property value (attribute access)
 - `len(cfg)` - Number of properties
 - `'name' in cfg` - Check if property exists
-- `for k, v in cfg` - Iterate over properties
+- `for key in cfg` - Iterate over property names (keys)
 - `repr(cfg)` - Short representation
 - `str(cfg)` - Detailed representation
 
@@ -395,13 +490,27 @@ else:
    cfg.update(debug=False, port=3000, host='0.0.0.0')
    ```
 
-4. **Check existence before access:**
+4. **Use attribute access for static keys:**
+   ```python
+   # ✅ Good - clean and readable
+   if cfg.debug:
+       cfg.port = 8080
+   ```
+
+5. **Use dict-style access for dynamic keys:**
+   ```python
+   # ✅ Good - when key is in a variable
+   key = 'debug'
+   value = cfg[key]
+   ```
+
+6. **Check existence before access:**
    ```python
    if 'optional_setting' in cfg:
        value = cfg.optional_setting
    ```
 
-5. **Use `.get()` for safe access:**
+7. **Use `.get()` for safe access:**
    ```python
    timeout = cfg.get('timeout', 30)  # Default to 30
    ```
@@ -414,6 +523,7 @@ else:
 # TypeError: Type mismatch
 try:
     cfg.port = "invalid"
+    # or: cfg['port'] = "invalid"
 except TypeError as e:
     print(f"Error: {e}")
 
@@ -423,16 +533,23 @@ try:
 except ValueError as e:
     print(f"Error: {e}")
 
-# KeyError: Property doesn't exist
+# KeyError: Property doesn't exist (dict-style)
 try:
-    cfg.remove('nonexistent')
+    value = cfg['nonexistent']
 except KeyError as e:
     print(f"Error: {e}")
 
-# AttributeError: Access non-existent property
+# AttributeError: Property doesn't exist (attribute-style)
 try:
     value = cfg.nonexistent
 except AttributeError as e:
+    print(f"Error: {e}")
+
+# KeyError: Remove non-existent property
+try:
+    cfg.remove('nonexistent')
+    # or: del cfg['nonexistent']
+except KeyError as e:
     print(f"Error: {e}")
 ```
 
@@ -445,3 +562,4 @@ MIT License - Copyright 2025, barabasz
 ## 🔗 Links
 
 - Repository: https://github.com/barabasz/scripts/tree/main/python/config
+- Version: 1.0.7
