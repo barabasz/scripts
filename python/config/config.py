@@ -59,6 +59,9 @@ class Config:
     """
     Main class for configuration management.
     
+    Provides both attribute-style (config.height) and dictionary-style
+    (config['height']) access with type validation.
+    
     Usage example:
         config = Config(
             height=(int, 1920),
@@ -67,8 +70,8 @@ class Config:
         )
         
         print(config.height)  # 1920
-        config.height = 2560
-        print(config.height)  # 2560
+        config['height'] = 2560
+        print(config['height'])  # 2560
         
         config.title = None   # Allowed, as type is Optional[str]
     """
@@ -282,8 +285,29 @@ class Config:
         return len(self._properties)
 
     def __iter__(self):
-        """Allows iteration over (key, value) pairs."""
-        return iter(self._values.items())
+        """Allows iteration over property names (keys), like a dict."""
+        return iter(self._values)
+
+    def __getitem__(self, name: str) -> Any:
+        """Enables access to values via config['property_name']"""
+        if name not in self._properties:
+            raise KeyError(f"Property '{name}' doesn't exist")
+        try:
+            return self._values[name]
+        except KeyError:
+             # This case should technically not be hit if _properties and _values
+             # are in sync, but it's good practice.
+            raise KeyError(f"Property '{name}' doesn't exist")
+
+    def __setitem__(self, name: str, value: Any) -> None:
+        """Enables setting values via config['property_name'] = value"""
+        # We can just call __setattr__ since it has all the logic
+        self.__setattr__(name, value)
+
+    def __delitem__(self, name: str) -> None:
+        """Enables deleting/removing properties via del config['property_name']"""
+        # We can just call remove() since it has all the logic
+        self.remove(name)
 
     def __str__(self) -> str:
         """User-friendly string representation of the object."""
