@@ -9,11 +9,9 @@ def main():
         version=(int, 2)
     )
     cnf.name = "test_new"
-    cnf.version = 5
-    print(cnf.name)
-    cnf.list()
-    cnf.remove('name')
-    cnf.
+    cnf.show()
+    cnf.reset()
+    cnf.show()
 
 if __name__ == "__main__":
     main()

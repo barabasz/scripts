@@ -190,7 +190,36 @@ class Config:
         """
         for name, value in kwargs.items():
             setattr(self, name, value)
-    
+
+    def copy(self) -> 'Config':
+        """
+        Creates a shallow copy of the configuration.
+        
+        All properties (including read-only status and types) are copied.
+        Values are shallow-copied (mutable objects like lists are shared).
+        
+        Returns:
+            New Config instance with copied properties.
+        
+        Example:
+            >>> original = Config(debug=(bool, True))
+            >>> backup = original.copy()
+            >>> backup.debug = False  # Doesn't affect original
+        """
+        cfg = Config()
+        for name, desc in self._properties.items():
+            cfg.add(name, desc.prop_type, self._values[name], desc.readonly)
+        return cfg
+
+    def reset(self) -> None:
+        """
+        Resets all mutable properties to their default values.
+        Read-only properties are not affected.
+        """
+        for name, desc in self._properties.items():
+            if not desc.readonly:
+                self._values[name] = desc.default_value
+
     def _format_value_for_display(self, value: Any) -> str:
         """
         Formats value for display in show() method.
