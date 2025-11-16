@@ -2,7 +2,8 @@
 Core implementation of the Config class.
 """
 
-from typing import Any, Type, Optional, get_type_hints, get_origin, get_args, Union
+from typing import Any, Type, Optional, Union
+from typing import get_type_hints, get_origin, get_args
 from dataclasses import dataclass
 
 

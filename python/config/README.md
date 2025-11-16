@@ -1,9 +1,5 @@
 # Config - Type-Safe Configuration Management
 
-**Version:** 1.0.5  
-**Author:** barabasz  
-**License:** MIT
-
 ## 📖 Overview
 
 `Config` is a Python class for managing configuration with:
@@ -449,4 +445,3 @@ MIT License - Copyright 2025, barabasz
 ## 🔗 Links
 
 - Repository: https://github.com/barabasz/scripts/tree/main/python/config
-- Version: 1.0.5
