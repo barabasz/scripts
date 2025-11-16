@@ -2,8 +2,7 @@
 Core implementation of the Config class.
 """
 
-from typing import Any, Type, Optional, Union
-from typing import get_type_hints, get_origin, get_args
+from typing import Any, Type, Union, get_origin, get_args
 from dataclasses import dataclass
 
 
@@ -13,10 +12,21 @@ class PropertyDescriptor:
     name: str
     prop_type: Type
     default_value: Any = None
+    readonly: bool = False
     
     def validate_type(self, value: Any) -> bool:
         """
         Checks if the value matches the type (handles Optional, Union, and generics).
+        
+        Limitations:
+        - For generic container types like list[str] or dict[int, str],
+          only the container type is validated (e.g., is it a list?).
+          Element type validation is NOT performed.
+          Example: A list[str] property accepts [123] without error.
+        - For custom generic types from 'typing', validation is best-effort.
+        
+        Returns:
+            True if value matches the declared type, False otherwise.
         """
         prop_type = self.prop_type
         origin = get_origin(prop_type)
@@ -58,44 +68,69 @@ class PropertyDescriptor:
 class Config:
     """
     Main class for configuration management.
-    
+
     Provides both attribute-style (config.height) and dictionary-style
-    (config['height']) access with type validation.
+    (config['height']) access with type validation and optional read-only properties.
     
     Usage example:
+        from typing import Optional
+        
         config = Config(
-            height=(int, 1920),
-            width=(int, 1080),
-            title=(Optional[str], "Default Title")
+            VERSION=(str, "1.0.0", True),       # read-only
+            height=(int, 1920),                 # mutable
+            width=(int, 1080),                  # mutable
+            title=(Optional[str], "Default")    # mutable
         )
         
         print(config.height)  # 1920
-        config['height'] = 2560
-        print(config['height'])  # 2560
+        config['height'] = 2560  # OK
         
-        config.title = None   # Allowed, as type is Optional[str]
+        config.VERSION = "2.0.0"  # Error: read-only!
     """
     
-    def __init__(self, **properties: tuple[Type, Any]):
+    def __init__(self, **properties):
         """
         Initializes the configuration object.
         
-        Properties can be passed upon creation, e.g.:
-        config = Config(
-            height=(int, 1920),
-            width=(int, 1080),
-            title=(Optional[str], None)
-        )
+        Properties format:
+            name=(type, default_value)              # mutable property
+            name=(type, default_value, True)        # read-only property
+            name=(type, default_value, False)       # mutable property (explicit)
+        
+        Example:
+            config = Config(
+                APP_NAME=(str, "MyApp", True),      # read-only
+                height=(int, 1920),                 # mutable
+                debug=(bool, False, False)          # mutable (explicit)
+            )
         """
         # Dictionary storing property descriptors
         object.__setattr__(self, '_properties', {})
         # Dictionary storing actual values
         object.__setattr__(self, '_values', {})
         
-        for name, (prop_type, default_value) in properties.items():
-            self.add(name, prop_type, default_value)
+        for name, prop_def in properties.items():
+            if isinstance(prop_def, tuple):
+                if len(prop_def) == 2:
+                    prop_type, default_value = prop_def
+                    readonly = False
+                elif len(prop_def) == 3:
+                    prop_type, default_value, readonly = prop_def
+                else:
+                    raise ValueError(
+                        f"Invalid property definition for '{name}': "
+                        f"expected (type, value) or (type, value, readonly)"
+                    )
+            else:
+                raise ValueError(
+                    f"Invalid property definition for '{name}': "
+                    f"expected tuple, got {type(prop_def).__name__}"
+                )
+            
+            self.add(name, prop_type, default_value, readonly)
     
-    def add(self, name: str, prop_type: Type, default_value: Any = None) -> None:
+    def add(self, name: str, prop_type: Type, default_value: Any = None, 
+            readonly: bool = False) -> None:
         """
         Adds a new property to the configuration.
         
@@ -103,6 +138,7 @@ class Config:
             name: Property name
             prop_type: Property type (e.g. int, str, Optional[float])
             default_value: Default value (optional)
+            readonly: If True, property cannot be modified after creation
         
         Raises:
             ValueError: If property already exists
@@ -111,7 +147,7 @@ class Config:
         if name in self._properties:
             raise ValueError(f"Property '{name}' already exists")
         
-        descriptor = PropertyDescriptor(name, prop_type, default_value)
+        descriptor = PropertyDescriptor(name, prop_type, default_value, readonly)
         
         # Validate the default value
         if not descriptor.validate_type(default_value):
@@ -126,6 +162,8 @@ class Config:
     def remove(self, name: str) -> None:
         """
         Removes a property from the configuration.
+        
+        Note: Read-only properties can be removed (but not modified).
         
         Args:
             name: Name of the property to remove
@@ -147,7 +185,7 @@ class Config:
             **kwargs: Property name-value pairs to update
         
         Raises:
-            AttributeError: If property doesn't exist
+            AttributeError: If property doesn't exist or is read-only
             TypeError: If value doesn't match the declared type
         """
         for name, value in kwargs.items():
@@ -155,9 +193,13 @@ class Config:
     
     def _format_value_for_display(self, value: Any) -> str:
         """
-        Formats value for display in list() method.
+        Formats value for display in show() method.
         Shortens long strings and shows collection sizes.
         """
+        # Handle booleans first (bool inherits from int, so check before any int logic)
+        if isinstance(value, bool):
+            return repr(value)  # 'True' or 'False'
+        
         # Handle strings - shorten if longer than 27 characters
         if isinstance(value, str):
             if len(value) > 27:
@@ -171,10 +213,10 @@ class Config:
                 return '<empty>'
             return f'<{count} item{"s" if count != 1 else ""}>'
         
-        # For all other types (including None), use standard repr
+        # For all other types (including None, int, float), use standard repr
         return repr(value)
     
-    def list(self) -> None:
+    def show(self) -> None:
         """Prints all currently set properties with their values and declared types."""
         if not self._properties:
             print("No properties defined.")
@@ -200,6 +242,10 @@ class Config:
             else:
                 # Complex typing type (Optional[str], list[str], Union[int, float])
                 type_name = repr(prop_type)
+            
+            # Add [RO] suffix for read-only properties
+            if descriptor.readonly:
+                type_name += " [RO]"
                 
             formatted_value = self._format_value_for_display(value)
             
@@ -271,6 +317,13 @@ class Config:
             )
         
         descriptor = self._properties[name]
+        
+        # Check if property is read-only
+        if descriptor.readonly:
+            raise AttributeError(
+                f"Property '{name}' is read-only and cannot be modified"
+            )
+        
         # Validate the new value against the stored type
         if not descriptor.validate_type(value):
             raise TypeError(
@@ -292,21 +345,15 @@ class Config:
         """Enables access to values via config['property_name']"""
         if name not in self._properties:
             raise KeyError(f"Property '{name}' doesn't exist")
-        try:
-            return self._values[name]
-        except KeyError:
-             # This case should technically not be hit if _properties and _values
-             # are in sync, but it's good practice.
-            raise KeyError(f"Property '{name}' doesn't exist")
+        return self._values[name]
 
     def __setitem__(self, name: str, value: Any) -> None:
         """Enables setting values via config['property_name'] = value"""
-        # We can just call __setattr__ since it has all the logic
+        # Use __setattr__ to ensure read-only check
         self.__setattr__(name, value)
 
     def __delitem__(self, name: str) -> None:
         """Enables deleting/removing properties via del config['property_name']"""
-        # We can just call remove() since it has all the logic
         self.remove(name)
 
     def __str__(self) -> str:
@@ -326,3 +373,17 @@ class Config:
         """Canonical string representation of the object."""
         prop_count = len(self._properties)
         return f"<Config object with {prop_count} propert{'ies' if prop_count != 1 else 'y'}>"
+
+    def __hash__(self):
+        """
+        Config objects are mutable and cannot be hashed.
+        
+        This prevents using Config objects as dictionary keys or in sets,
+        which could lead to unexpected behavior since Config objects can be modified.
+        
+        Raises:
+            TypeError: Always raised to prevent using Config in sets/dict keys
+        """
+        raise TypeError(
+            "unhashable type: 'Config' (Config objects are mutable and cannot be hashed)"
+        )
