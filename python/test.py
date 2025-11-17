@@ -3,15 +3,13 @@
 
 from config import Config
 
-def main():
-    cnf = Config(
-        name=(str, "test"),
-        version=(int, 2)
-    )
-    cnf.name = "test_new"
-    cnf.show()
-    cnf.reset()
-    cnf.show()
+from typing import Optional, Union
 
-if __name__ == "__main__":
-    main()
+# Test 1: Union z None
+cfg = Config()
+
+cfg.add('name', str, "", True)
+# cfg.freeze()
+cfg.show()
+
+cfg.name = 'TestName'

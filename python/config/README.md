@@ -8,6 +8,7 @@
 - Typo protection - `cfg.debgu = False` raises error instead of silent failure
 - Optional & Union types - `Optional[str]`, `Union[int, str]` built-in
 - Read-only properties - protect constants from accidental modification
+- Freeze/unfreeze - temporarily lock entire configuration
 - Dict-like interface - both `cfg.key` and `cfg['key']` syntax
 - IDE autocomplete - full IntelliSense support
 - Runtime introspection - query types and metadata programmatically
@@ -57,6 +58,14 @@ app['port'] = 3000      # OK
 # Read-only properties cannot be modified
 app.VERSION = "2.0.0"   # AttributeError: read-only!
 
+# Freeze entire configuration
+app.freeze()
+app.port = 9000         # AttributeError: Config is frozen!
+
+# Check frozen status
+if app.frozen:
+    app.unfreeze()
+
 # Display all properties
 app.show()
 # Configuration properties:
@@ -70,7 +79,7 @@ app.show()
 
 ### Note
 
-`Config` objects are NOT thread-safe. If you need to modify configuration from multiple threads, use external synchronization (e.g., threading.Lock). For read-only access from multiple threads, no lock is needed (as long as no thread modifies the config).
+`Config` objects are NOT thread-safe. If you need to modify configuration from multiple threads, use external synchronization (e.g., threading.Lock). For read-only access from multiple threads, no lock is needed (especially when config is frozen).
 
 ---
 
@@ -156,7 +165,7 @@ import os
 cfg = Config(
     # Application constants (read-only)
     APP_NAME=(str, "MyApplication", True),
-    VERSION=(str, "1.0.8", True),
+    VERSION=(str, "1.1.2", True),
     MAX_UPLOAD_SIZE=(int, 10485760, True),  # 10MB
     
     # Environment info (read-only)
@@ -195,7 +204,7 @@ if info.readonly:
 # 1. Application metadata
 cfg = Config(
     APP_VERSION=(str, "1.0.0", True),
-    BUILD_DATE=(str, "2025-11-16", True)
+    BUILD_DATE=(str, "2025-11-17", True)
 )
 
 # 2. Security secrets (prevent accidental change)
@@ -215,6 +224,119 @@ cfg = Config(
     HOSTNAME=(str, os.uname().nodename, True),
     PID=(int, os.getpid(), True)
 )
+```
+
+---
+
+## Freeze/Unfreeze Configuration
+
+Freeze temporarily locks the entire configuration, making ALL properties (including normally mutable ones) read-only.
+
+```python
+cfg = Config(
+    VERSION=(str, "1.0.0", True),  # read-only
+    debug=(bool, True),             # mutable
+    port=(int, 8080)                # mutable
+)
+
+# Freeze configuration
+cfg.freeze()
+
+# Check frozen status (property, not method!)
+if cfg.frozen:
+    print("Config is frozen")
+
+# Cannot modify ANY property when frozen
+cfg.debug = False  # AttributeError: Config is frozen
+cfg.port = 9000    # AttributeError: Config is frozen
+
+# Even read-only properties show frozen error first
+cfg.VERSION = "2.0"  # AttributeError: Config is frozen
+
+# Unfreeze to allow modifications
+cfg.unfreeze()
+
+# Now mutable properties can be changed
+cfg.debug = False  # OK
+cfg.port = 9000    # OK
+
+# But read-only properties remain read-only
+cfg.VERSION = "2.0"  # AttributeError: read-only
+```
+
+### Freeze Use Cases
+
+```python
+# 1. Bootstrap - freeze after initialization
+cfg = Config(debug=(bool, True), port=(int, 8080))
+cfg.debug = os.getenv('DEBUG', 'false').lower() == 'true'
+cfg.freeze()  # Lock config before starting app
+start_application(cfg)
+
+# 2. Testing - prevent accidental modifications
+def test_feature(production_config):
+    production_config.freeze()
+    run_test(production_config)  # Can't modify config
+
+# 3. Multi-threaded read-only access
+cfg.freeze()
+threads = [Thread(target=worker, args=(cfg,)) for _ in range(10)]
+# All threads can safely read (no modifications possible)
+
+# 4. Passing to untrusted code
+cfg.freeze()
+third_party_plugin.process(cfg)  # Plugin can't modify our config
+cfg.unfreeze()
+```
+
+### Freeze Methods and Properties
+
+```python
+# Methods
+cfg.freeze()      # Freezes configuration
+cfg.unfreeze()    # Unfreezes configuration
+
+# Property (read-only)
+cfg.frozen        # Returns True if frozen, False otherwise
+
+# Note: cfg.frozen is a property, NOT a method!
+if cfg.frozen:           # Correct
+    cfg.unfreeze()
+
+# if cfg.frozen():       # Wrong! (TypeError)
+```
+
+---
+
+## Copy and Reset
+
+```python
+# Copy - creates unfrozen shallow copy
+cfg = Config(debug=(bool, True))
+cfg.freeze()
+
+backup = cfg.copy()
+backup.frozen  # False (copy is always unfrozen)
+backup.debug = False  # OK (doesn't affect original)
+
+# Reset - restores mutable properties to defaults
+cfg = Config(
+    VERSION=(str, "1.0", True),  # read-only
+    debug=(bool, False),          # mutable, default=False
+    port=(int, 8080)              # mutable, default=8080
+)
+
+cfg.debug = True
+cfg.port = 9000
+
+cfg.reset()  # Resets mutable properties to defaults
+cfg.debug    # False (back to default)
+cfg.port     # 8080 (back to default)
+cfg.VERSION  # "1.0" (unchanged - read-only)
+
+# Note: Cannot reset when frozen
+cfg.freeze()
+cfg.reset()  # AttributeError: Config is frozen
 ```
 
 ---
@@ -265,6 +387,10 @@ cfg[key] = 8080
 
 # Read-only properties cannot be modified
 cfg.VERSION = "2.0.0"  # AttributeError: Property 'VERSION' is read-only
+
+# Frozen config cannot be modified
+cfg.freeze()
+cfg.port = 9000  # AttributeError: Config is frozen
 ```
 
 ### Multiple Properties (Bulk Update)
@@ -278,6 +404,10 @@ cfg.update(
 
 # Attempting to update read-only property raises error
 cfg.update(VERSION="2.0.0")  # AttributeError: read-only
+
+# Cannot update when frozen
+cfg.freeze()
+cfg.update(port=9000)  # AttributeError: Config is frozen
 ```
 
 ### Optional Values
@@ -316,6 +446,10 @@ del cfg['port']
 # Read-only properties CAN be removed
 del cfg['VERSION']  # Works (they can be removed, just not modified)
 
+# Properties can be removed even when frozen
+cfg.freeze()
+del cfg['port']  # OK
+
 # Safe removal
 if 'port' in cfg:
     del cfg['port']
@@ -337,6 +471,13 @@ cfg.show()
 # host             = 'localhost'     str
 # port             = 8080            int
 # --------------------------------------------
+
+# Frozen indicator
+cfg.freeze()
+cfg.show()
+# Configuration properties: [FROZEN]
+# --------------------------------------------
+# ...
 ```
 
 ### Property Metadata
@@ -403,6 +544,8 @@ settings_dict = dict(cfg)   # {'APP_NAME': 'MyApp', ...}
 ```python
 # Short canonical form
 repr(cfg)  # "<Config object with 5 properties>"
+cfg.freeze()
+repr(cfg)  # "<Config object with 5 properties, frozen>"
 
 # Detailed user-friendly form
 str(cfg)   # "Config(APP_NAME='MyApp' (<class 'str'>), ...)"
@@ -434,6 +577,12 @@ cfg = Config(port=(Union[int, str], 8080))
 cfg.port = 9000      # OK
 cfg.port = "auto"    # OK
 cfg['port'] = 3.14   # TypeError: float not in Union[int, str]
+
+# Union with None
+cfg = Config(value=(Union[int, str, None], None))
+cfg.value = 42       # OK
+cfg.value = "text"   # OK
+cfg.value = None     # OK
 ```
 
 **Note:** For generic container types like `list[str]` or `dict[int, str]`, only the container type is validated (e.g., is it a list?). Element type validation is NOT performed. Example: A `list[str]` property will accept `[123]` without error.
@@ -489,21 +638,17 @@ app_config = Config(
 # Display configuration
 app_config.show()
 
-# Switch to production (only mutable properties)
-app_config.update(
-    debug=False,
-    host="0.0.0.0",
-    port=443,
-    database_url="postgresql://user:pass@db.prod.com/app"
-)
+# Configure from environment
+app_config.debug = os.getenv('DEBUG', 'false').lower() == 'true'
+app_config.port = int(os.getenv('PORT', '5000'))
 
-# Constants remain protected
+# Freeze before starting (prevent modifications during runtime)
+app_config.freeze()
+print(f"Config frozen: {app_config.frozen}")
+
+# Start application
 print(f"Running {app_config.APP_NAME} v{app_config.VERSION}")
 print(f"Environment: {app_config.ENVIRONMENT}")
-
-# Use in application
-if app_config.debug:
-    print(f"Debug: Running on {app_config.host}:{app_config.port}")
 
 if app_config['database_url']:
     # connect_to_database(app_config['database_url'])
@@ -536,8 +681,8 @@ cfg = Config(
 ```python
 cfg = Config(
     # Version info (read-only)
-    VERSION=(str, "1.0.8", True),
-    BUILD_DATE=(str, "2025-11-16", True),
+    VERSION=(str, "1.1.2", True),
+    BUILD_DATE=(str, "2025-11-17", True),
     
     # Limits (read-only)
     MAX_CONNECTIONS=(int, 1000, True),
@@ -553,7 +698,7 @@ cfg.current_connections += 1
 cfg.requests_count += 1
 
 # But limits cannot
-# cfg.MAX_CONNECTIONS = 2000  # Error!
+# cfg.MAX_CONNECTIONS = 2000  # AttributeError: read-only
 ```
 
 ### Validation Before Use
@@ -568,6 +713,10 @@ else:
 info = cfg.get_property_info('VERSION')
 if info.readonly:
     print(f"{info.name} is a constant: {cfg.VERSION}")
+
+# Check frozen status
+if cfg.frozen:
+    print("Config is locked")
 ```
 
 ### Dynamic Key Access
@@ -599,26 +748,33 @@ print(f"Constants: {constants}")
 
 ### Methods
 - `.add(name, type, default=None, readonly=False)` - Add new property
-- `.remove(name)` - Remove property (works for both mutable and read-only)
-- `.update(**kwargs)` - Update multiple properties (read-only will raise error)
+- `.remove(name)` - Remove property (works even when frozen)
+- `.update(**kwargs)` - Update multiple properties (raises error if frozen/readonly)
 - `.get(name, default=None)` - Get value with default
-- `.show()` - Display formatted table (shows [RO] for read-only)
+- `.show()` - Display formatted table (shows [RO] and [FROZEN])
+- `.copy()` - Create shallow copy (always unfrozen)
+- `.reset()` - Reset mutable properties to defaults (raises error if frozen)
+- `.freeze()` - Freeze configuration (all properties become read-only)
+- `.unfreeze()` - Unfreeze configuration
 - `.keys()` - Get property names
 - `.values()` - Get property values
 - `.items()` - Get (name, value) pairs
-- `.get_property_info(name)` - Get PropertyDescriptor (includes `readonly` field)
+- `.get_property_info(name)` - Get PropertyDescriptor
 - `.list_properties()` - Get all PropertyDescriptors
+
+### Properties
+- `.frozen` - Read-only property returning True if config is frozen
 
 ### Special Methods (Dict-like Interface)
 - `cfg['name']` - Get property value (raises `KeyError` if not exists)
-- `cfg['name'] = value` - Set property value (raises `AttributeError` if read-only)
+- `cfg['name'] = value` - Set property value (raises error if readonly/frozen)
 - `del cfg['name']` - Remove property
 - `cfg.name` - Get property value (attribute access)
-- `cfg.name = value` - Set property value (raises `AttributeError` if read-only)
+- `cfg.name = value` - Set property value (raises error if readonly/frozen)
 - `len(cfg)` - Number of properties
 - `'name' in cfg` - Check if property exists
 - `for key in cfg` - Iterate over property names (keys)
-- `repr(cfg)` - Short representation
+- `repr(cfg)` - Short representation (includes frozen status)
 - `str(cfg)` - Detailed representation
 - `hash(cfg)` - Raises `TypeError` (Config objects are unhashable)
 
@@ -626,7 +782,7 @@ print(f"Constants: {constants}")
 - **Simple:** `int`, `str`, `bool`, `float`
 - **Collections:** `list`, `dict`, `tuple`, `set`
 - **Optional:** `Optional[T]` (allows `None`)
-- **Union:** `Union[T1, T2]` (multiple types)
+- **Union:** `Union[T1, T2]` (multiple types, including `None`)
 - **Generics:** `list[str]`, `dict[str, int]`, etc. (container validation only)
 
 ---
@@ -635,7 +791,6 @@ print(f"Constants: {constants}")
 
 1. **Use read-only for constants:**
    ```python
-   # Good - constants are protected
    cfg = Config(
        VERSION=(str, "1.0.0", True),
        MAX_SIZE=(int, 1000, True),
@@ -643,57 +798,53 @@ print(f"Constants: {constants}")
    )
    ```
 
-2. **Use bulk initialization** for cleaner code:
+2. **Freeze after initialization:**
    ```python
-   # Good
+   cfg = Config(debug=(bool, True))
+   cfg.debug = load_from_env()
+   cfg.freeze()  # Lock before starting app
+   ```
+
+3. **Use `frozen` property (not method!):**
+   ```python
+   # Correct
+   if cfg.frozen:
+       cfg.unfreeze()
+   
+   # Wrong
+   # if cfg.frozen():  # TypeError!
+   ```
+
+4. **Use bulk initialization:**
+   ```python
    cfg = Config(
        VERSION=(str, "1.0.0", True),
        debug=(bool, True),
        port=(int, 8080)
    )
-   
-   # Verbose
-   cfg = Config()
-   cfg.add('VERSION', str, '1.0.0', readonly=True)
-   cfg.add('debug', bool, True)
-   cfg.add('port', int, 8080)
    ```
 
-3. **Use `Optional` for nullable values:**
+5. **Use `Optional` for nullable values:**
    ```python
    from typing import Optional
    cfg = Config(api_key=(Optional[str], None))
    ```
 
-4. **Use `.update()` for multiple changes:**
+6. **Use `.update()` for multiple changes:**
    ```python
    cfg.update(debug=False, port=3000, host='0.0.0.0')
    ```
 
-5. **Use attribute access for static keys:**
+7. **Use attribute access for static keys:**
    ```python
-   # Good - clean and readable
    if cfg.debug:
        cfg.port = 8080
    ```
 
-6. **Use dict-style access for dynamic keys:**
+8. **Use dict-style access for dynamic keys:**
    ```python
-   # Good - when key is in a variable
    key = 'debug'
    value = cfg[key]
-   ```
-
-7. **Check read-only status before attempting modification:**
-   ```python
-   info = cfg.get_property_info('VERSION')
-   if not info.readonly:
-       cfg.VERSION = "2.0.0"
-   ```
-
-8. **Use `.get()` for safe access:**
-   ```python
-   timeout = cfg.get('timeout', 30)  # Default to 30
    ```
 
 ---
@@ -711,9 +862,16 @@ except TypeError as e:
 
 # AttributeError: Read-only property
 try:
-    cfg.VERSION = "2.0.0"  # VERSION is read-only
+    cfg.VERSION = "2.0.0"
 except AttributeError as e:
     print(f"Error: {e}")  # "Property 'VERSION' is read-only"
+
+# AttributeError: Frozen config
+try:
+    cfg.freeze()
+    cfg.port = 9000
+except AttributeError as e:
+    print(f"Error: {e}")  # "Cannot modify property: Config is frozen"
 
 # ValueError: Duplicate property
 try:
@@ -733,12 +891,33 @@ try:
 except AttributeError as e:
     print(f"Error: {e}")
 
-# TypeError: Unhashable (cannot use in set/dict keys)
+# TypeError: Unhashable
 try:
     my_set = {cfg}
 except TypeError as e:
     print(f"Error: {e}")  # "unhashable type: 'Config'"
 ```
+
+---
+
+## Changelog
+
+### Version 1.1.2 (2025-11-17)
+- Changed `is_frozen()` method to `frozen` read-only property
+- Improved None handling in Union types
+- Added display formatting constants as class attributes
+- Refactored `_format_value_for_display()` 
+
+### Version 1.1.0 (2025-11-16)
+- Added freeze/unfreeze functionality
+- Added copy() and reset() methods
+- Added read-only properties support
+- Improved type validation for Optional and Union types
+
+### Version 0.9.5 (2025-11-15)
+- Added support for complex types (List, Dict, Optional)
+- Added list() method to display all properties
+- Added validation for simple types (int, str, list)
 
 ---
 
@@ -749,6 +928,6 @@ MIT License - Copyright 2025, barabasz
 ## Links
 
 - Repository: https://github.com/barabasz/scripts/tree/main/python/config
-- Version: 1.1.0
+- Version: 1.1.2
 - Author: barabasz
 - Date: 2025-11-17

@@ -31,20 +31,30 @@ class PropertyDescriptor:
         prop_type = self.prop_type
         origin = get_origin(prop_type)
 
-        # 1. Handle Union types (including Optional[T], which is Union[T, None])
+        # 1. Handle None FIRST (before Union check)
+        if value is None:
+            # None is allowed if:
+            # - Type is explicitly type(None)
+            # - Type is Optional[T] (i.e., Union[T, None])
+            # - Type is Union[...] containing None
+            if prop_type is type(None):
+                return True
+            if origin is Union:
+                return type(None) in get_args(prop_type)
+            return False
+
+        # 2. Handle Union types (including Optional[T], which is Union[T, None])
         if origin is Union:
             args = get_args(prop_type)
             for arg in args:
+                # Skip None in Union (already handled above)
+                if arg is type(None):
+                    continue
                 # Recursively check if the value matches any type in the Union
                 temp_descriptor = PropertyDescriptor(self.name, arg, self.default_value)
                 if temp_descriptor.validate_type(value):
                     return True
             return False  # Value doesn't match any type in the Union
-
-        # 2. Handle None (if the type itself is not a Union)
-        if value is None:
-            # None is only valid if the type is explicitly type(None)
-            return prop_type is type(None)
 
         # 3. Handle generic container types (e.g., list[str], dict[int, str])
         if origin:
@@ -86,7 +96,16 @@ class Config:
         config['height'] = 2560  # OK
         
         config.VERSION = "2.0.0"  # Error: read-only!
+        
+        config.freeze()
+        config.height = 1080  # Error: Config is frozen!
     """
+    
+    # Display formatting constants
+    _MAX_STR_DISPLAY_LENGTH = 27
+    _MIN_NAME_COL_WIDTH = 15
+    _MAX_NAME_COL_WIDTH = 30
+    _VALUE_COL_WIDTH = 30
     
     def __init__(self, **properties):
         """
@@ -108,6 +127,8 @@ class Config:
         object.__setattr__(self, '_properties', {})
         # Dictionary storing actual values
         object.__setattr__(self, '_values', {})
+        # Frozen state flag
+        object.__setattr__(self, '_frozen', False)
         
         for name, prop_def in properties.items():
             if isinstance(prop_def, tuple):
@@ -143,7 +164,13 @@ class Config:
         Raises:
             ValueError: If property already exists
             TypeError: If default value doesn't match the type
+            AttributeError: If config is frozen
         """
+        if self._frozen:
+            raise AttributeError(
+                "Cannot add property: Config is frozen. Use unfreeze() first."
+            )
+        
         if name in self._properties:
             raise ValueError(f"Property '{name}' already exists")
         
@@ -164,6 +191,7 @@ class Config:
         Removes a property from the configuration.
         
         Note: Read-only properties can be removed (but not modified).
+        Properties can be removed even when config is frozen.
         
         Args:
             name: Name of the property to remove
@@ -185,7 +213,7 @@ class Config:
             **kwargs: Property name-value pairs to update
         
         Raises:
-            AttributeError: If property doesn't exist or is read-only
+            AttributeError: If property doesn't exist, is read-only, or config is frozen
             TypeError: If value doesn't match the declared type
         """
         for name, value in kwargs.items():
@@ -197,14 +225,17 @@ class Config:
         
         All properties (including read-only status and types) are copied.
         Values are shallow-copied (mutable objects like lists are shared).
+        The copied config is unfrozen, even if the original is frozen.
         
         Returns:
             New Config instance with copied properties.
         
         Example:
             >>> original = Config(debug=(bool, True))
+            >>> original.freeze()
             >>> backup = original.copy()
-            >>> backup.debug = False  # Doesn't affect original
+            >>> backup.frozen  # False (copy is unfrozen)
+            >>> backup.debug = False  # OK - doesn't affect original
         """
         cfg = Config()
         for name, desc in self._properties.items():
@@ -215,35 +246,86 @@ class Config:
         """
         Resets all mutable properties to their default values.
         Read-only properties are not affected.
+        
+        Raises:
+            AttributeError: If config is frozen
         """
+        if self._frozen:
+            raise AttributeError(
+                "Cannot reset: Config is frozen. Use unfreeze() first."
+            )
+        
         for name, desc in self._properties.items():
             if not desc.readonly:
                 self._values[name] = desc.default_value
 
-    def _format_value_for_display(self, value: Any) -> str:
+    def freeze(self) -> None:
         """
-        Formats value for display in show() method.
-        Shortens long strings and shows collection sizes.
-        """
-        # Handle booleans first (bool inherits from int, so check before any int logic)
-        if isinstance(value, bool):
-            return repr(value)  # 'True' or 'False'
+        Freezes the configuration, making all properties read-only.
         
-        # Handle strings - shorten if longer than 27 characters
-        if isinstance(value, str):
-            if len(value) > 27:
-                return repr(value[:27] + '…')
+        When frozen, no properties can be modified (including normally mutable ones).
+        Read-only properties remain read-only. Properties can still be removed.
+        New properties cannot be added when frozen.
+        
+        Example:
+            >>> cfg = Config(debug=(bool, True))
+            >>> cfg.freeze()
+            >>> cfg.debug = False  # AttributeError: Config is frozen
+            >>> cfg.frozen  # True
+        """
+        object.__setattr__(self, '_frozen', True)
+
+    def unfreeze(self) -> None:
+        """
+        Unfreezes the configuration, allowing modifications again.
+        
+        After unfreezing, mutable properties can be modified normally.
+        Read-only properties remain read-only.
+        
+        Example:
+            >>> cfg.freeze()
+            >>> cfg.unfreeze()
+            >>> cfg.debug = False  # OK now
+            >>> cfg.frozen  # False
+        """
+        object.__setattr__(self, '_frozen', False)
+
+    @property
+    def frozen(self) -> bool:
+        """
+        Returns True if configuration is frozen.
+        
+        When frozen, no properties can be modified.
+        Use freeze() to freeze or unfreeze() to unfreeze.
+        
+        Example:
+            >>> cfg = Config(debug=(bool, True))
+            >>> cfg.frozen  # False
+            >>> cfg.freeze()
+            >>> cfg.frozen  # True
+        """
+        return self._frozen
+
+    def _format_value_for_display(self, value: Any) -> str:
+        """Formats value for display in show() method."""
+        
+        if isinstance(value, bool):
             return repr(value)
         
-        # Handle collections (list, tuple, dict, set) - show item count
-        if isinstance(value, (list, tuple, dict, set)):
-            count = len(value)
-            if count == 0:
-                return '<empty>'
-            return f'<{count} item{"s" if count != 1 else ""}>'
+        if isinstance(value, str):
+            if len(value) > self._MAX_STR_DISPLAY_LENGTH:
+                return repr(value[:self._MAX_STR_DISPLAY_LENGTH] + '…')
+            return repr(value)
         
-        # For all other types (including None, int, float), use standard repr
+        if isinstance(value, (list, tuple, dict, set)):
+            return self._format_collection_item(value)
+        
         return repr(value)
+    
+    def _format_collection_item(self, value: Union[list, tuple, dict, set]) -> str:
+        """Formats collection for display (shows item count)."""
+        count = len(value)
+        return '<empty>' if count == 0 else f'<{count} item{"s" if count != 1 else ""}>'
     
     def show(self) -> None:
         """Prints all currently set properties with their values and declared types."""
@@ -251,10 +333,16 @@ class Config:
             print("No properties defined.")
             return
         
-        print("Configuration properties:")
+        # Show frozen status
+        frozen_indicator = " [FROZEN]" if self._frozen else ""
+        print(f"Configuration properties:{frozen_indicator}")
+        
         max_name_len = max(len(name) for name in self._properties.keys())
-        name_col_width = max(15, min(max_name_len + 1, 30))  # min 15, max 30
-        value_col_width = 30  # Fixed width for the formatted value
+        name_col_width = max(
+            self._MIN_NAME_COL_WIDTH,
+            min(max_name_len + 1, self._MAX_NAME_COL_WIDTH)
+        )
+        value_col_width = self._VALUE_COL_WIDTH
         separator = " = "
         total_width = name_col_width + len(separator) + value_col_width + 1
         print("-" * (total_width + 4))
@@ -325,7 +413,7 @@ class Config:
     def __getattr__(self, name: str) -> Any:
         """Enables access to values via config.property_name"""
         if name.startswith('_'):
-            # Handle private attributes like _properties, _values
+            # Handle private attributes like _properties, _values, _frozen
             return object.__getattribute__(self, name)
         
         if name not in self._properties:
@@ -343,6 +431,12 @@ class Config:
         if name not in self._properties:
             raise AttributeError(
                 f"Property '{name}' doesn't exist. Use add() to create it."
+            )
+        
+        # Check if config is frozen
+        if self._frozen:
+            raise AttributeError(
+                "Cannot modify property: Config is frozen. Use unfreeze() first."
             )
         
         descriptor = self._properties[name]
@@ -378,7 +472,7 @@ class Config:
 
     def __setitem__(self, name: str, value: Any) -> None:
         """Enables setting values via config['property_name'] = value"""
-        # Use __setattr__ to ensure read-only check
+        # Use __setattr__ to ensure read-only and frozen checks
         self.__setattr__(name, value)
 
     def __delitem__(self, name: str) -> None:
@@ -401,7 +495,8 @@ class Config:
     def __repr__(self) -> str:
         """Canonical string representation of the object."""
         prop_count = len(self._properties)
-        return f"<Config object with {prop_count} propert{'ies' if prop_count != 1 else 'y'}>"
+        frozen_str = ", frozen" if self._frozen else ""
+        return f"<Config object with {prop_count} propert{'ies' if prop_count != 1 else 'y'}{frozen_str}>"
 
     def __hash__(self):
         """
