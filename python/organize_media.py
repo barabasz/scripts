@@ -69,7 +69,7 @@ def init_config() -> Config:
     return Config(
         # Script metadata (read-only)
         script_name=(str, "organize_media", True),
-        script_version=(str, "0.56", True),
+        script_version=(str, "0.6", True),
         script_date=(str, "2025-11-17", True),
         script_author=(str, "github.com/barabasz", True),
         
@@ -86,7 +86,7 @@ def init_config() -> Config:
         # Folder/file naming templates
         fallback_folder=(str, "_UNKNOWN"),
         file_template=(str, "YYYYMMDD-HHMMSS"),
-        folder_template=(str, "YYYYMMDD"),
+        directory_template=(str, "YYYYMMDD"),
         interfix=(str, ""),
         
         # Display settings (read-only)
@@ -97,18 +97,18 @@ def init_config() -> Config:
         normalize_ext=(bool, True),
         offset=(int, 0),
         overwrite=(bool, False),
-        quiet_mode=(bool, False),
+        quiet=(bool, False),
         show_version=(bool, False),
         show_files_details=(bool, False),
-        show_files_errors=(bool, False),
-        show_raw_settings=(bool, False),
-        test_mode=(bool, False),
+        show_errors=(bool, False),
+        show_settings=(bool, False),
+        test=(bool, False),
         time_day_starts=(str, "04:00:00"),
         use_fallback_folder=(bool, False),
         use_prefix=(bool, True),
         use_subdirs=(bool, True),
-        verbose_mode=(bool, False),
-        yes_to_all=(bool, False),
+        verbose=(bool, False),
+        yes=(bool, False),
         
         # Runtime values
         source_dir=(Path, Path.cwd()),
@@ -136,30 +136,39 @@ def print_progress(item: int, total: int, message: str, show_percentage: bool = 
     print(msg, end="", flush=True)
 
 
+def update_config_from_args(args) -> None:
+    """
+    Automatically update config from parsed arguments.
+    
+    Matches argument names to config property names and updates them.
+    Special cases are handled explicitly.
+    """
+    # Arguments that need special handling
+    SPECIAL_HANDLING = {'directory', '_skip_fallback'}
+    
+    for arg_name, arg_value in vars(args).items():
+        # Skip special cases
+        if arg_name in SPECIAL_HANDLING:
+            continue
+        
+        # Update if property exists in config
+        if hasattr(cfg, arg_name):
+            # Special processing for extensions
+            if arg_name == 'extensions':
+                cfg.extensions = [ext.lower().lstrip('.') for ext in arg_value]
+            else:
+                setattr(cfg, arg_name, arg_value)
+    
+    # Handle inverted logic for skip_fallback
+    cfg.use_fallback_folder = not args._skip_fallback
+    
+    # Handle directory
+    cfg.source_dir = Path(args.directory).resolve()
+    cfg.source_dir_writable = os.access(cfg.source_dir, os.W_OK)
+
+
 def parse_args() -> None:
     """Parse command line arguments and update configuration."""
-    
-    # Mapping from argparse destination names to config property names
-    ARG_TO_CONFIG = {
-        'directory_template': 'folder_template',
-        'files_details': 'show_files_details',
-        'show_errors': 'show_files_errors',
-        'file_template': 'file_template',
-        'interfix': 'interfix',
-        'new_day': 'time_day_starts',
-        'normalize_ext': 'normalize_ext',
-        'fallback_folder': 'fallback_folder',
-        'offset': 'offset',
-        'overwrite': 'overwrite',
-        'use_prefix': 'use_prefix',
-        'quiet': 'quiet_mode',
-        'settings': 'show_raw_settings',
-        'use_subdirs': 'use_subdirs',
-        'test': 'test_mode',
-        'version': 'show_version',
-        'verbose': 'verbose_mode',
-        'yes': 'yes_to_all',
-    }
     
     parser = argparse.ArgumentParser(
         prog=cfg.script_name,
@@ -170,69 +179,80 @@ def parse_args() -> None:
         epilog=f"Example: {colorize(cfg.script_name, colors.green)} -o 3600 --fallback-folder UNSORTED"
     )
     
-    # Options with arguments
-    parser.add_argument("-d", "--directory-template", type=str, default=cfg.folder_template, metavar="TEMPLATE",
-                        help=f"Template for directory names (default: '{colorize(cfg.folder_template, colors.yellow)}')")
-    parser.add_argument("-D", "--files-details", action="store_true",
+    # Define arguments with dest matching cfg property names
+    parser.add_argument("-d", "--directory-template", dest="directory_template",
+                        type=str, default=cfg.directory_template, metavar="TEMPLATE",
+                        help=f"Template for directory names (default: '{colorize(cfg.directory_template, colors.yellow)}')")
+    
+    parser.add_argument("-D", "--files-details", dest="show_files_details", action="store_true",
                         help="Show detailed information about each file")
-    parser.add_argument("-e", "--extensions", type=str, nargs="+", default=cfg.extensions, metavar="EXT",
+    
+    parser.add_argument("-e", "--extensions", dest="extensions",
+                        type=str, nargs="+", default=cfg.extensions, metavar="EXT",
                         help=f"List of file extensions to process (default: '{colorize(', '.join(cfg.extensions), colors.yellow)}')")
-    parser.add_argument("-E", "--show-errors", action="store_true",
+    
+    parser.add_argument("-E", "--show-errors", dest="show_errors", action="store_true",
                         help="Show files with errors")
-    parser.add_argument("-f", "--file-template", type=str, default=cfg.file_template, metavar="TEMPLATE",
+    
+    parser.add_argument("-f", "--file-template", dest="file_template",
+                        type=str, default=cfg.file_template, metavar="TEMPLATE",
                         help=f"Template for file names (default: '{colorize(cfg.file_template, colors.yellow)}')")
-    parser.add_argument("-i", "--interfix", type=str, default=cfg.interfix, metavar="TEXT",
-                        help=f"Text to insert between timestamp prefix and original filename (default: '{colorize('-', colors.yellow)}')")
-    parser.add_argument("-n", "--new-day", type=str, default=cfg.time_day_starts, metavar="HH:MM:SS",
+    
+    parser.add_argument("-i", "--interfix", dest="interfix",
+                        type=str, default=cfg.interfix, metavar="TEXT",
+                        help=f"Text to insert between timestamp prefix and original filename")
+    
+    parser.add_argument("-n", "--new-day", dest="time_day_starts",
+                        type=str, default=cfg.time_day_starts, metavar="HH:MM:SS",
                         help=f"Time when the new day starts (default: '{colorize(cfg.time_day_starts, colors.yellow)}')")
-    parser.add_argument("-N", "--no-normalize", action="store_false", dest="normalize_ext",
+    
+    parser.add_argument("-N", "--no-normalize", dest="normalize_ext", action="store_false",
                         help="Do not normalize extensions to 3-letter lowercase")
-    parser.add_argument("-F", "--fallback-folder", type=str, default=cfg.fallback_folder, metavar="FOLDER",
+    
+    parser.add_argument("-F", "--fallback-folder", dest="fallback_folder",
+                        type=str, default=cfg.fallback_folder, metavar="FOLDER",
                         help=f"Folder name for images without EXIF date (default: '{colorize(cfg.fallback_folder, colors.yellow)}')")
-    parser.add_argument("-o", "--offset", type=int, default=cfg.offset, metavar="SECONDS",
+    
+    parser.add_argument("-o", "--offset", dest="offset",
+                        type=int, default=cfg.offset, metavar="SECONDS",
                         help="Time offset in seconds to apply to EXIF dates")
-    parser.add_argument("-O", "--overwrite", action="store_true",
+    
+    parser.add_argument("-O", "--overwrite", dest="overwrite", action="store_true",
                         help="Overwrite existing files during move/rename operation")
-    parser.add_argument("-p", "--no-prefix", action="store_false", dest="use_prefix",
+    
+    parser.add_argument("-p", "--no-prefix", dest="use_prefix", action="store_false",
                         help="Do not add timestamp prefix to filenames")
-    parser.add_argument("-q", "--quiet", action="store_true",
+    
+    parser.add_argument("-q", "--quiet", dest="quiet", action="store_true",
                         help="Quiet mode (suppress non-error messages)")
-    parser.add_argument("-s", "--skip-fallback", action="store_true",
+    
+    parser.add_argument("-s", "--skip-fallback", dest="_skip_fallback", action="store_true",
                         help="Do not move files without date to fallback folder")
-    parser.add_argument("-S", "--settings", action="store_true",
+    
+    parser.add_argument("-S", "--settings", dest="show_settings", action="store_true",
                         help="Show raw settings (variable values)")
-    parser.add_argument("-r","--rename", action="store_false", dest="use_subdirs",
+    
+    parser.add_argument("-r","--rename", dest="use_subdirs", action="store_false",
                         help="Rename in place (do not move files in subdirectories)")
-    parser.add_argument("-t", "--test", action="store_true",
+    
+    parser.add_argument("-t", "--test", dest="test", action="store_true",
                         help="Test mode: show what would be done without making changes")
-    parser.add_argument("-v", "--version", action="store_true",
+    
+    parser.add_argument("-v", "--version", dest="show_version", action="store_true",
                         help="Print version and exit")
-    parser.add_argument("-V", "--verbose", action="store_true",
+    
+    parser.add_argument("-V", "--verbose", dest="verbose", action="store_true",
                         help="Print detailed information during processing")
-    parser.add_argument("-y", "--yes", action="store_true",
+    
+    parser.add_argument("-y", "--yes", dest="yes", action="store_true",
                         help="Assume 'yes' to all prompts")
     
-    # Positional arguments
     parser.add_argument("directory", type=str, default=str(cfg.source_dir), nargs="?",
-                    help="Directory to organize (default: current working directory)")
+                        help="Directory to organize (default: current working directory)")
     
-    # Parse arguments
+    # Parse arguments and update config
     args = parser.parse_args()
-    
-    # Update config using mapping
-    for arg_name, cfg_name in ARG_TO_CONFIG.items():
-        if hasattr(args, arg_name):
-            setattr(cfg, cfg_name, getattr(args, arg_name))
-    
-    # Special handling for extensions (lowercase and strip dots)
-    cfg.extensions = [ext.lower().lstrip('.') for ext in args.extensions]
-    
-    # Special handling for skip_fallback (inverted logic)
-    cfg.use_fallback_folder = not args.skip_fallback
-    
-    # Update source directory and check writability
-    cfg.source_dir = Path(args.directory).resolve()
-    cfg.source_dir_writable = os.access(cfg.source_dir, os.W_OK)
+    update_config_from_args(args)
 
 
 def printe(message: str, exit_code: int = 1) -> None:
@@ -257,7 +277,7 @@ def check_conditions() -> None:
     if not cfg.extensions or all(ext.strip() == "" for ext in cfg.extensions):
         printe("At least one file extension must be specified.", 1)
     
-    if cfg.quiet_mode and cfg.verbose_mode:
+    if cfg.quiet and cfg.verbose:
         printe("Cannot use both quiet mode and verbose mode.", 1)
 
 
@@ -265,7 +285,7 @@ def get_schema() -> str:
     """Generate and return the schema string based on current settings."""
     file_org = "FileName.Ext"
     arrow = colorize("→", colors.yellow)
-    folder = colorize(cfg.folder_template, colors.cyan)
+    folder = colorize(cfg.directory_template, colors.cyan)
     folder = f"{folder}/" if cfg.use_subdirs else ""
     prefix = colorize(cfg.file_template, colors.cyan)
     separator = colorize(cfg.interfix, colors.cyan)
@@ -293,24 +313,24 @@ def print_settings() -> None:
         'extensions': cfg.extensions,
         'fallback_folder': cfg.fallback_folder,
         'file_template': cfg.file_template,
-        'folder_template': cfg.folder_template,
+        'directory_template': cfg.directory_template,
         'interfix': cfg.interfix,
         'normalize_ext': cfg.normalize_ext,
         'offset': cfg.offset,
         'overwrite': cfg.overwrite,
-        'quiet_mode': cfg.quiet_mode,
+        'quiet': cfg.quiet,
         'show_version': cfg.show_version,
         'show_files_details': cfg.show_files_details,
-        'show_raw_settings': cfg.show_raw_settings,
+        'show_settings': cfg.show_settings,
         'source_dir': cfg.source_dir,
         'source_dir_writable': cfg.source_dir_writable,
-        'test_mode': cfg.test_mode,
+        'test': cfg.test,
         'time_day_starts': cfg.time_day_starts,
         'use_fallback_folder': cfg.use_fallback_folder,
         'use_prefix': cfg.use_prefix,
         'use_subdirs': cfg.use_subdirs,
-        'verbose_mode': cfg.verbose_mode,
-        'yes_to_all': cfg.yes_to_all,
+        'verbose': cfg.verbose,
+        'yes': cfg.yes,
     }
     
     for key, value in settings.items():
@@ -324,57 +344,57 @@ def print_header() -> None:
     
     print(f"{colorize('Media Organizer Script', colors.green)} ({colorize(cfg.script_name, colors.green)}) v{cfg.script_version}")
     
-    if cfg.show_raw_settings and not cfg.quiet_mode:
+    if cfg.show_settings and not cfg.quiet:
         print_settings()
     
     print_schema()
     
-    if cfg.quiet_mode:
+    if cfg.quiet:
         return
     
     print(f"{colorize('Settings:', colors.yellow)}")
     
     # Conditional settings display
-    if cfg.verbose_mode:
-        print(f"{cfg.indent}Verbose mode: {get_status(cfg.verbose_mode)}")
+    if cfg.verbose:
+        print(f"{cfg.indent}Verbose mode: {get_status(cfg.verbose)}")
     
-    if cfg.test_mode or cfg.verbose_mode:
-        print(f"{cfg.indent}Test mode: {get_status(cfg.test_mode)}")
+    if cfg.test or cfg.verbose:
+        print(f"{cfg.indent}Test mode: {get_status(cfg.test)}")
     
     if cfg.extensions:
         print(f"{cfg.indent}Include extensions: {colorize(', '.join(cfg.extensions), colors.cyan)}")
     
-    if cfg.verbose_mode or not cfg.use_subdirs:
+    if cfg.verbose or not cfg.use_subdirs:
         print(f"{cfg.indent}Process to subdirectories: {get_status(cfg.use_subdirs)}")
     
     if cfg.use_subdirs:
-        print(f"{cfg.indent}Subfolder template: {colorize(cfg.folder_template, colors.cyan)}")
+        print(f"{cfg.indent}Subfolder template: {colorize(cfg.directory_template, colors.cyan)}")
     
-    if cfg.verbose_mode or cfg.time_day_starts != "00:00:00":
+    if cfg.verbose or cfg.time_day_starts != "00:00:00":
         print(f"{cfg.indent}Day starts time set to: {colorize(cfg.time_day_starts, colors.cyan)}")
     
-    if cfg.verbose_mode or cfg.overwrite:
+    if cfg.verbose or cfg.overwrite:
         print(f"{cfg.indent}Overwrite existing files: {get_status(cfg.overwrite)}")
     
-    if cfg.verbose_mode or not cfg.normalize_ext:
+    if cfg.verbose or not cfg.normalize_ext:
         print(f"{cfg.indent}Normalize extensions: {get_status(cfg.normalize_ext)}")
     
-    if cfg.verbose_mode or not cfg.use_prefix:
+    if cfg.verbose or not cfg.use_prefix:
         print(f"{cfg.indent}Add prefix to filenames: {get_status(cfg.use_prefix)}")
     
-    if cfg.verbose_mode or cfg.use_prefix:
+    if cfg.verbose or cfg.use_prefix:
         print(f"{cfg.indent}Prefix format: {colorize(cfg.file_template, colors.cyan)}")
     
-    if cfg.verbose_mode or not cfg.use_fallback_folder:
+    if cfg.verbose or not cfg.use_fallback_folder:
         print(f"{cfg.indent}Use fallback folder: {get_status(cfg.use_fallback_folder)}")
     
     if cfg.use_fallback_folder:
         print(f"{cfg.indent}Fallback folder name: {colorize(cfg.fallback_folder, colors.cyan)}")
     
-    if cfg.verbose_mode or cfg.offset != 0:
+    if cfg.verbose or cfg.offset != 0:
         print(f"{cfg.indent}Time offset: {colorize(f'{cfg.offset} seconds', colors.cyan)}")
     
-    if cfg.interfix or cfg.verbose_mode:
+    if cfg.interfix or cfg.verbose:
         print(f"{cfg.indent}Interfix: {colorize(cfg.interfix, colors.cyan)}")
 
 
@@ -392,7 +412,7 @@ def print_footer(folder_info: Dict) -> None:
     
     print(f"{colorize('Summary:', colors.yellow)}")
     
-    if cfg.test_mode:
+    if cfg.test:
         print(f"{cfg.indent}Test mode (no changes made).")
     else:
         print(f"{cfg.indent}Processed files: {len(folder_info['processed_files'])}")
@@ -405,7 +425,7 @@ def print_footer(folder_info: Dict) -> None:
 def prompt_user(folder_info: Dict[str, int]) -> bool:
     """Ask user for confirmation to continue."""
     # Skip prompt if auto-confirmed or in test mode
-    if cfg.yes_to_all or cfg.test_mode:
+    if cfg.yes or cfg.test:
         return True
     
     # Build and display prompt
@@ -438,7 +458,7 @@ def get_media_objects(file_list: list[Path], folder_info: Dict) -> list['FileIte
     for item, file in enumerate(media_files, start=1):
         media_item = FileItem(file)
         
-        if cfg.show_files_details and not cfg.quiet_mode:
+        if cfg.show_files_details and not cfg.quiet:
             print_file_info(media_item)
         else:
             print_progress(item, media_count, colorize(media_item.name_old, colors.cyan))
@@ -486,7 +506,7 @@ def print_folder_info(folder_info: Dict) -> None:
     print(f"{cfg.indent}Path: {colorize(str(cfg.source_dir), colors.cyan)}")
     print(f"{cfg.indent}Total files: {colorize(str(folder_info['file_count']), colors.cyan)}")
     
-    if cfg.verbose_mode:
+    if cfg.verbose:
         media_types_str = ', '.join(
             f"{colorize(str(count), colors.cyan)} x {colorize(ext.upper(), colors.cyan)}" 
             for ext, count in folder_info['media_types'].items()
@@ -524,13 +544,13 @@ def print_files_info(files: List['FileItem'], folder_info: Dict) -> None:
     folder_info['valid_files'] = valid_files
     folder_info['invalid_files'] = invalid_files
     
-    if not cfg.quiet_mode:
+    if not cfg.quiet:
         print(f"{colorize('Files Summary:', colors.yellow)}")
         print(f"{cfg.indent}Total files analyzed: {colorize(str(total_files), colors.cyan)}")
         print(f"{cfg.indent}Valid files: {colorize(str(valid_files), colors.cyan)}")
         print(f"{cfg.indent}Invalid files: {colorize(str(invalid_files), colors.cyan)}")
     
-    if (cfg.verbose_mode or cfg.show_files_errors) and invalid_files > 0:
+    if (cfg.verbose or cfg.show_errors) and invalid_files > 0:
         print_file_errors(files)
 
 
@@ -555,7 +575,7 @@ def print_file_info(file: 'FileItem') -> None:
 
 def print_process_file(file: 'FileItem', item: int, total_items: int) -> None:
     """Print information about a file being processed."""
-    if cfg.verbose_mode:
+    if cfg.verbose:
         old = colorize(f"{file.name_old:<13}", colors.cyan)
         arr = colorize("→", colors.yellow)
         sub = f"{colorize(file.subdir, colors.cyan)}/" if cfg.use_subdirs else ""
@@ -577,11 +597,11 @@ def process_files(media_list: List['FileItem'], folder_info: Dict) -> None:
     action = 'Moving' if cfg.use_subdirs else 'Renaming'
     print(f"{colorize(f'{action} files:', colors.yellow)}")
     
-    for item, file in enumerate((f for f in media_list if f.is_valid), 1):
+    for item, file in enumerate((f for f in media_list if f.is_valid), start=1):
         # Create target directory if needed
         if cfg.use_subdirs:
             target_dir = cfg.source_dir / file.subdir
-            if not target_dir.exists() and not cfg.test_mode:
+            if not target_dir.exists() and not cfg.test:
                 target_dir.mkdir(parents=True, exist_ok=True)
                 created_dirs.append(file.subdir)
         
@@ -592,7 +612,7 @@ def process_files(media_list: List['FileItem'], folder_info: Dict) -> None:
             continue
         
         # Move/rename file
-        if not cfg.test_mode:
+        if not cfg.test:
             try:
                 file.path_old.rename(file.path_new)
             except Exception as e:
@@ -604,14 +624,14 @@ def process_files(media_list: List['FileItem'], folder_info: Dict) -> None:
         print_process_file(file, item, total_items)
         processed_files.append(file.name_old)
     
-    if not cfg.verbose_mode and processed_files:
+    if not cfg.verbose and processed_files:
         print(f"{cfg.terminal_clear}{cfg.indent}Done.")
     
-    if not processed_files and not cfg.quiet_mode:
+    if not processed_files and not cfg.quiet:
         print(f"{cfg.indent}No files were processed.")
     
     # Print files with errors
-    if (cfg.verbose_mode or cfg.show_files_errors) and skipped_files:
+    if (cfg.verbose or cfg.show_errors) and skipped_files:
         print_file_errors(media_list)
     
     folder_info['processed_files'] = processed_files
@@ -718,9 +738,9 @@ class FileItem:
             target_date = target_date - datetime.timedelta(days=1)
         
         # Format the folder name according to template
-        if cfg.folder_template == "YYYYMMDD":
+        if cfg.directory_template == "YYYYMMDD":
             return target_date.strftime("%Y%m%d")
-        elif cfg.folder_template == "YYYY-MM-DD":
+        elif cfg.directory_template == "YYYY-MM-DD":
             return target_date.strftime("%Y-%m-%d")
         else:
             return target_date.strftime("%Y%m%d")
