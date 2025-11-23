@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from config import Config
+from pyconf import Config
 
 from typing import Optional, Union
 

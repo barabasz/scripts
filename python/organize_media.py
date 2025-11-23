@@ -2,7 +2,10 @@
 # -*- coding: utf-8 -*-
 """
 Sort media files into date-based folders by reading EXIF creation date.
-Requires: ExifTool command-line tool and PyExifTool Python library.
+Requires:
+    - ExifTool command-line tool (exiftool.org)
+    - PyExifTool Python library (pypi.org/project/PyExifTool)
+    - TyConf class (github.com/barabasz/scripts/tree/main/python/TyConf)
 Author: github.com/barabasz
 """
 
@@ -16,12 +19,12 @@ from typing import Dict, List, Optional
 from pathlib import Path
 from dataclasses import dataclass
 
-# Import Config class
+# Import TyConf class
 try:
-    from config import Config
+    from tyconf import TyConf
 except ImportError:
-    print("\033[0;31mConfig module not found.\033[0m")
-    print("Please ensure config.py is in the same directory or in your Python path.")
+    print("\033[0;31mTyConf module not found.\033[0m")
+    print("Please ensure 'TyConf' is in the same directory or in your Python path.")
     sys.exit(1)
 
 # Check if PyExifTool is installed
@@ -55,18 +58,18 @@ class Colors:
 colors = Colors()
 
 # Global config instance (initialized in main)
-cfg: Optional[Config] = None
+cfg: Optional[TyConf] = None
 start_time: float = 0.0
 
 
-def init_config() -> Config:
+def init_config() -> TyConf:
     """
     Initialize configuration with default values.
     
     Returns:
-        Config instance with all default settings.
+        TyConf instance with all default settings.
     """
-    return Config(
+    return TyConf(
         # Script metadata (read-only)
         script_name=(str, "organize_media", True),
         script_version=(str, "0.6", True),
