@@ -209,26 +209,15 @@ class Dow:
 
 
 # ----------------------------------------------------------------------
-# Usage examples
+# Usage example
 # ----------------------------------------------------------------------
 
 if __name__ == "__main__":
 
-    today_str = _date.today().strftime("%Y-%m-%d")
-    next_jan1  = f"{_date.today().year + 1}-01-01"
-
-    examples = [
-        ("0001-01-01", "First supported date"),
-        ("1492-10-12", "Columbus lands in the Americas"),
-        ("1582-10-04", "Last day of the Julian calendar"),
-        ("1582-10-15", "First day of the Gregorian calendar"),
-        ("1969-07-20", "Moon landing (Apollo 11)"),
-        ("2000-02-29", "Leap day 2000 (Gregorian — divisible by 400)"),
-        (today_str,   "Today"),
-        (next_jan1,   f"New Year's Day {_date.today().year + 1}"),
-        ("9999-12-31", "Last supported date"),
-    ]
-
-    for date_str, label in examples:
-        d = Dow(date_str)
-        print(f"{label}: {d.date_long}")
+	some_iso_date = "1492-10-12" # Columbus lands in the Americas
+	
+	try:
+		d = Dow(some_iso_date)
+		print(d.date_long)
+	except ValueError as e:
+	    print(f"Invalid date: {e}")
